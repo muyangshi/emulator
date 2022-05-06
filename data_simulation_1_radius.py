@@ -286,7 +286,7 @@ data = {'Knots':Knots_data,
         'beta_shape':beta_shape,
         }
 n_updates = 1001    
-sigma_m   = {'phi_radius':np.sqrt(2.4**2/(n_phi_range_knots+1)),
+sigma_m   = {'phi_radius':np.sqrt(2.4**2/(n_phi_range_knots+4)),
              'radius':0.00042, #np.sqrt(2.4**2/n_Rt_knots),
              'Rt':np.sqrt(2.4**2/n_Rt_knots),
              'phi':np.sqrt(2.4**2/n_phi_range_knots),
@@ -299,7 +299,7 @@ sigma_m   = {'phi_radius':np.sqrt(2.4**2/(n_phi_range_knots+1)),
              'beta_scale':2.4**2/n_covariates,
              'beta_shape':2.4**2/n_covariates,
              }
-prop_sigma   = {'phi_radius':np.eye(n_phi_range_knots+1)*1e-1,
+prop_sigma   = {'phi_radius':np.eye(n_phi_range_knots+4),
                 'radius':np.eye(n_Rt_knots)*1e-3,
                 'Rt':np.eye(n_Rt_knots),
                 'phi':np.eye(n_phi_range_knots)*1e-3,

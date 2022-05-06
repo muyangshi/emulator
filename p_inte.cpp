@@ -77,7 +77,7 @@ double pmixture_C(double xval, double phi, double gamma){
       }
     
     // Error handling: still diverging
-    if(err == GSL_EDIVERGE & xval > 1e4){
+    if((err == GSL_EDIVERGE) & (xval > 1e4)){
         err = RW_marginal_C(&xval, phi, gamma, 1, &result);
         result = result/constant;
       }
@@ -149,7 +149,7 @@ double dmixture_C(double xval, double phi, double gamma){
       }
         
     // Error handling: still diverging
-    if(err == GSL_EDIVERGE & xval > 1e4){
+    if((err == GSL_EDIVERGE) & (xval > 1e4)){
         err = RW_density_C(&xval, phi, gamma, 1, &result);
         result = result/constant;
       }
@@ -194,7 +194,7 @@ double qRW_bisection_C(double p, double phi, double gamma, int n_x){
     int iter=0;
     double new_F = pmixture_C(m, phi, gamma);
     double diff = new_F-p;
-    while (iter<n_x & abs(diff)> 1e-04){
+    while ((iter<n_x) & (abs(diff)> 1e-04)){
         if (diff>0){
             x_range[1] = m;}
         else{
@@ -220,7 +220,7 @@ double qRW_newton_C(double p, double phi, double gamma, int n_x){
     double error=1;
     double F_value, f_value;
     
-    while (iter<n_x & error> 1e-08){
+    while ((iter<n_x) & (error> 1e-08)){
         F_value = pmixture_C(current_x , phi, gamma);
         f_value = dmixture_C(current_x , phi, gamma);
         new_x = current_x - (F_value-p)/f_value;
