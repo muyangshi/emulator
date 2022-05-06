@@ -25,10 +25,10 @@
       
 
 if __name__ == "__main__":
-   import nonstat_noNugget.model_sim as utils
-   # import nonstat_noNugget.generic_samplers as sampler
-   # import nonstat_noNugget.priors as priors
-   import nonstat_noNugget.ns_cov as cov
+   import nonstat_Pareto1.model_sim as utils
+   # import nonstat_Pareto1.generic_samplers as sampler
+   # import nonstat_Pareto1.priors as priors
+   import nonstat_Pareto1.ns_cov as cov
    import os
    import numpy as np
    # import time

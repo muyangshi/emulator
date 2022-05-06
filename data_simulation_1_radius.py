@@ -3,10 +3,10 @@ import os
 os.chdir("/Users/LikunZhang/Desktop/Nonstat/")
 
 # import random
-import nonstat_noNugget.model_sim as utils
-import nonstat_noNugget.generic_samplers as sampler
-import nonstat_noNugget.priors as priors
-import nonstat_noNugget.ns_cov as cov
+import nonstat_Pareto1.model_sim as utils
+import nonstat_Pareto1.generic_samplers as sampler
+import nonstat_Pareto1.priors as priors
+import nonstat_Pareto1.ns_cov as cov
 import numpy as np
 from scipy.stats import uniform
 from scipy.stats import norm 
@@ -177,7 +177,7 @@ Z = np.empty((n_s,n_t))
 Z[:] = np.nan
 for idy in np.arange(n_t):
   Z_t = utils.eig2inv_times_vector(V, np.sqrt(d), norm.rvs(size=n_s))
-  Z_to_W_s = 1/(1-norm.cdf(Z_t))
+  Z_to_W_s = 1/(1-norm.cdf(Z_t))-1
   tmp = (R_s[:,idy]**phi_vec)*Z_to_W_s
   X[:,idy] = tmp 
   Z[:,idy] = Z_t
@@ -416,6 +416,9 @@ plt.hlines(tau_sqd, 0, 5000, colors='r', linestyles='--');
 ## --------------------------------------------------------------------
 ## ----------------------- For radii from knots -----------------------
 ## --------------------------------------------------------------------
+from scipy.linalg import cholesky
+cholesky_U = cholesky(Cov,lower=False)
+
 # Distance from knots
 Distance_from_stations_to_knots = np.empty((n_s, n_Rt_knots))
 for ind in np.arange(n_s):
@@ -427,8 +430,8 @@ gamma_vec_star = np.repeat(np.nan, n_s)
 X_star = np.empty(X.shape)
 
 def tmpf(radius_knot1):
-    radius_from_knots_proposal = np.repeat(3.5,n_Rt_knots)
-    radius_from_knots_proposal[0] = radius_knot1
+    radius_from_knots_proposal = np.repeat(radius_knot1,n_Rt_knots)
+    # radius_from_knots_proposal[0] = radius_knot1
  
     # Not broadcasting but generating at each node
     for idy in np.arange(n_s):
@@ -450,8 +453,8 @@ def tmpf(radius_knot1):
         Star_lik = -np.inf
     return Star_lik
 
-try_size = 40
-x = np.linspace(3.48,3.52, try_size)
+try_size = 70
+x = np.linspace(3.3,3.7, try_size)
 
 func = np.empty(try_size)
 for idx,xi in enumerate(x):
@@ -462,6 +465,118 @@ import matplotlib.pyplot as plt
 plt.plot(x, func, linestyle='solid')
 
 
+
+
+## ----------------------------------------------------------------------------------
+## ----------------------- For radii from knots (Monte Carlo) -----------------------
+## ----------------------------------------------------------------------------------
+# Distance from knots
+Distance_from_stations_to_knots = np.empty((n_s, n_Rt_knots))
+for ind in np.arange(n_s):
+    Distance_from_stations_to_knots[ind,:] = distance.cdist(Stations[ind,:].reshape((-1,2)),Knots_data)
+ 
+R_weights_star = np.empty((n_s,Knots_data.shape[0]))
+R_s_star = np.empty(R_s.shape)
+gamma_vec_star = np.repeat(np.nan, n_s)
+X_star = np.empty(X.shape)
+from scipy.linalg import cholesky
+cholesky_U = cholesky(Cov,lower=False)
+
+## Get Monte Carlo Samples
+from pickle import load
+   
+with open('nonstat_progress_0.pkl', 'rb') as f:
+     Y = load(f)
+     initial_values = load(f)
+     sigma_m = load(f)
+     prop_Sigma = load(f)
+     iter = load(f)
+     Rt_knots_trace = load(f)
+     # radius_knots_trace = load(f)
+     range_knots_trace = load(f)
+     phi_knots_radius_trace = load(f)
+     beta_gev_params_trace = load(f)
+    
+     f.close()
+
+choose = np.floor(np.linspace(5450, 5800,  num=20))
+choose = choose.astype(int)
+
+phi_1_vals = np.mean(phi_knots_radius_trace[choose,0])+(phi_knots_radius_trace[choose,0]-np.mean(phi_knots_radius_trace[choose,0]))*200
+
+loc_vals = np.mean(beta_gev_params_trace[choose,0])+(beta_gev_params_trace[choose,0]-np.mean(beta_gev_params_trace[choose,0]))*200
+scale_vals = np.mean(beta_gev_params_trace[choose,1])+(beta_gev_params_trace[choose,1]-np.mean(beta_gev_params_trace[choose,1]))*200
+shape_vals = np.mean(beta_gev_params_trace[choose,2])+(beta_gev_params_trace[choose,2]-np.mean(beta_gev_params_trace[choose,2]))*200
+
+GEV_phi_params = np.c_[loc_vals, scale_vals, shape_vals, phi_1_vals]
+
+
+def tmpf(radius_knot1, GEV_phi_params):
+    radius_from_knots_proposal = np.repeat(radius_knot1,n_Rt_knots)
+    # radius_from_knots_proposal[0] = radius_knot1
+ 
+    # Not broadcasting but generating at each node
+    for idy in np.arange(n_s):
+        tmp_weights = utils.wendland_weights_fun(Distance_from_stations_to_knots[idy,:],
+                                                       radius_from_knots_proposal)
+        R_weights_star[idy,:] = tmp_weights
+        gamma_vec_star[idy] = np.sum(np.sqrt(tmp_weights[np.nonzero(tmp_weights)]*gamma))**2 #only save once
+    for rank in np.arange(n_t):
+            R_s_star[:,rank] = R_weights_star @ R_at_knots[:,rank]
+            
+    numiter = GEV_phi_params.shape[0]
+    Lik = np.empty(numiter)
+    for id_iter in np.arange(numiter):
+        print(id_iter, "out of ", numiter)
+        beta_gev_params_star = GEV_phi_params[id_iter,:3]
+        loc0_star = Design_mat @np.array([beta_gev_params_star[0],0])
+        scale_star = Design_mat @np.array([beta_gev_params_star[1],0])
+        shape_star = Design_mat @np.array([beta_gev_params_star[2],0])
+        Loc_star = np.tile(loc0_star, n_t) + np.tile(loc1, n_t)*np.repeat(Time,n_s)
+        Loc_star = Loc_star.reshape((n_s,n_t),order='F')
+        Scale_star = np.tile(scale_star, n_t)
+        Scale_star = Scale_star.reshape((n_s,n_t),order='F')
+        Shape_star = np.tile(shape_star, n_t)
+        Shape_star = Shape_star.reshape((n_s,n_t),order='F')
+        
+        
+        phi_at_knots_proposal=np.empty(n_phi_range_knots)
+        phi_at_knots_proposal[:] = phi_at_knots
+        phi_at_knots_proposal[0] = GEV_phi_params[id_iter,3]
+        phi_vec_star = phi_range_weights @ phi_at_knots_proposal
+            
+        for rank in np.arange(n_t):
+            X_star[:,rank] = utils.gev_2_RW(Y[:,rank], phi_vec_star, gamma_vec_star,
+                                  Loc_star[:,rank], Scale_star[:,rank], Shape_star[:,rank])
+        
+        print("--------------------------")
+        # Evaluate likelihood at new values
+        if np.all(np.logical_and(radius_from_knots_proposal>0, radius_from_knots_proposal<10)):
+            Star_lik = utils.marg_transform_data_mixture_likelihood(Y, X_star, Loc, Scale,
+                                          Shape, phi_vec, gamma_vec_star, R_s_star,
+                                          cholesky_U)
+        else:
+            Star_lik = -np.inf
+            
+        Lik[id_iter] = Star_lik
+        
+    return (np.nanmean(Lik),np.sum(np.isnan(Lik)))
+
+try_size = 20
+x = np.linspace(3.4,3.6, try_size)
+
+func = np.empty(try_size)
+numnan = np.empty(try_size)
+for idx,xi in enumerate(x):
+         print(idx,xi)
+         tmp = tmpf(xi, GEV_phi_params)
+         func[idx] = tmp[0]
+         numnan[idx] = tmp[1]
+
+import matplotlib.pyplot as plt
+plt.plot(x, func, 'y', linestyle='solid')
+
+plt.scatter(x, func)
 
 ## --------------------------------------------------------------
 ## ----------------------- For GEV params -----------------------
