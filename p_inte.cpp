@@ -214,6 +214,7 @@ double qRW_bisection_C(double p, double phi, double gamma, int n_x){
 double qRW_newton_C(double p, double phi, double gamma, int n_x){
     double x_range[2];
     int tmp_res = 0;
+    if(p < 1e-15) {return 5.32907052e-15;}
     tmp_res = find_xrange_pRW_C(p, p, 1.0, 5.0, phi, gamma, x_range);
     double new_x, current_x = x_range[0];
     int iter=0;

@@ -329,6 +329,7 @@ def qRW_bisection(p, phi, gamma, n_x=100):
     return m
 
 def qRW_newton(p, phi, gamma, n_x=400):
+    if p<1e-15: return 5.32907052e-15
     x_range = np.empty(2)
     x_range = find_xrange_pRW(p, p, np.array([1., 5.]), phi, gamma)
     current_x = x_range[0]; iter=0; error=1
