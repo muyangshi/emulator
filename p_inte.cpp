@@ -59,6 +59,9 @@ double pmixture_C(double xval, double phi, double gamma){
     double two_pi = boost::math::constants::two_pi<double>();
     double constant = sqrt(gamma/two_pi);
     
+    if (xval < 1e-10){
+        return xval*constant*pow(gamma/2, -phi-0.5)*boost::math::tgamma(phi+0.5);
+    }
     gsl_integration_workspace * w
       = gsl_integration_workspace_alloc (1e4);
     gsl_set_error_handler_off();
@@ -214,7 +217,7 @@ double qRW_bisection_C(double p, double phi, double gamma, int n_x){
 double qRW_newton_C(double p, double phi, double gamma, int n_x){
     double x_range[2];
     int tmp_res = 0;
-    if(p < 1e-15) {return 5.32907052e-15;}
+//    if(p < 1e-15) {return 5.32907052e-15;}
     tmp_res = find_xrange_pRW_C(p, p, 1.0, 5.0, phi, gamma, x_range);
     double new_x, current_x = x_range[0];
     int iter=0;

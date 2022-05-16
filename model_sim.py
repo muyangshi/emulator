@@ -172,6 +172,7 @@ def gammaincc_unregulized(a,x):
 ##
 ##
 ## Approach 1: define integrand in Python
+## Did not fix the numerical integral issue when xval is less 1e-15
 def p_integrand(x, xval, phi, gamma):
    
     return (x**(phi-1.5))*np.exp(-gamma /(2*x))*np.sqrt(gamma/(2*np.pi))/(xval+x**phi)
