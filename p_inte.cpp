@@ -132,8 +132,14 @@ double dmixture_C(double xval, double phi, double gamma){
     double result = 0.0;
     double error;
     double two_pi = boost::math::constants::two_pi<double>();
+    double pi = boost::math::constants::pi<double>();
     double constant = sqrt(gamma/two_pi);
     
+    if (xval < 1e-8){
+        double tmp = 2/gamma;
+        double tmp1 = pow(tmp,phi)*boost::math::tgamma(phi+0.5) + xval*xval*pow(tmp,3*phi)*boost::math::tgamma(3*phi+0.5) - 2*xval*pow(tmp,2*phi)*boost::math::tgamma(2*phi+0.5);
+        return tmp1/sqrt(pi);
+    }
     gsl_integration_workspace * w
       = gsl_integration_workspace_alloc (1e4);
     gsl_set_error_handler_off();
