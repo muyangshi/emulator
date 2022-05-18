@@ -80,7 +80,7 @@ double pmixture_C(double xval, double phi, double gamma){
       }
     
     // Error handling: still diverging
-    if((err == GSL_EDIVERGE) & (xval > 1e4)){
+    if(((err == GSL_EDIVERGE) & (xval > 1e4))|(result < 0)){
         err = RW_marginal_C(&xval, phi, gamma, 1, &result);
         result = result/constant;
       }
@@ -158,7 +158,7 @@ double dmixture_C(double xval, double phi, double gamma){
       }
         
     // Error handling: still diverging
-    if((err == GSL_EDIVERGE) & (xval > 1e4)){
+    if(((err == GSL_EDIVERGE) & (xval > 1e4))|(result < 0)){
         err = RW_density_C(&xval, phi, gamma, 1, &result);
         result = result/constant;
       }
@@ -197,8 +197,8 @@ int find_xrange_pRW_C(double min_p, double max_p, double min_x, double max_x, do
 /* Get the quantile using the bisection method */
 double qRW_bisection_C(double p, double phi, double gamma, int n_x){
     double x_range[2];
-    int tmp_res = 0;
-    tmp_res = find_xrange_pRW_C(p, p, 1.0, 5.0, phi, gamma, x_range);
+//    int tmp_res = 0;
+    find_xrange_pRW_C(p, p, 1.0, 5.0, phi, gamma, x_range);
     double m = (x_range[0]+x_range[1])/2;
     int iter=0;
     double new_F = pmixture_C(m, phi, gamma);
@@ -222,9 +222,9 @@ double qRW_bisection_C(double p, double phi, double gamma, int n_x){
 /* Get the quantile using Newton-Raphson method */
 double qRW_newton_C(double p, double phi, double gamma, int n_x){
     double x_range[2];
-    int tmp_res = 0;
+//    int tmp_res = 0;
 //    if(p < 1e-15) {return 5.32907052e-15;}
-    tmp_res = find_xrange_pRW_C(p, p, 1.0, 5.0, phi, gamma, x_range);
+    find_xrange_pRW_C(p, p, 1.0, 5.0, phi, gamma, x_range);
     double new_x, current_x = x_range[0];
     int iter=0;
     double error=1;
