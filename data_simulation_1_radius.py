@@ -453,7 +453,7 @@ def tmpf(radius_knot1):
         Star_lik = -np.inf
     return Star_lik
 
-try_size = 70
+try_size = 50
 x = np.linspace(3.3,3.7, try_size)
 
 func = np.empty(try_size)
@@ -577,6 +577,57 @@ import matplotlib.pyplot as plt
 plt.plot(x, func, 'y', linestyle='solid')
 
 plt.scatter(x, func)
+
+
+
+
+
+## -------------------------------------------------------
+## ------------------------ For Rt -----------------------
+## -------------------------------------------------------
+
+# R[0] = 0.074
+rank = 1
+add_small = np.linspace(-1,10,num=20)
+Xt = X[:,rank]
+Rt_s = R_s[:,rank]
+Rt_at_knots = R_at_knots[:,rank]
+from scipy.linalg import cholesky
+cholesky_U = cholesky(Cov,lower=False)
+def test(x):
+    #Propose new values
+    Rt_s_star = np.empty(Rt_s.shape)
+       
+    #Propose Rt under every worker
+    Rt_at_knots_star = Rt_at_knots + np.concatenate((np.array([x]), np.repeat(0,n_Rt_knots-1)))
+    Rt_s_star[:] = R_weights @ Rt_at_knots_star 
+    return utils.marg_transform_data_mixture_likelihood_1t(Y[:,rank], Xt, Loc[:,rank], Scale[:,rank], 
+                                                 Shape[:,rank], phi_vec, gamma_vec, Rt_s_star, 
+                                                 cholesky_U)
+
+Lik = np.zeros(len(add_small))
+for idx, r in enumerate(add_small):
+    print(idx)
+    Lik[idx] = test(r) 
+import matplotlib.pyplot as plt
+plt.plot(add_small, Lik, linestyle='solid')
+# plt.axvline(R[t_chosen], color='r', linestyle='--');
+
+
+
+Res = sampler.adaptive_metr(Y[:,t_chosen], R[t_chosen], utils.Rt_update_mixture_me_likelihood, 
+                            priors.R_prior, gamma, 5000, random_generator,
+                            np.nan, True, False, .234, 10, .8,  10,
+                            X[:,t_chosen], Z[:,t_chosen], cen[:,t_chosen], cen_above[:,t_chosen], 
+                            prob_below, prob_above, Loc[:,t_chosen], Scale[:,t_chosen], Shape[:,t_chosen], tau_sqd, phi, gamma,
+                            xp, surv_p, den_p, thresh_X, thresh_X_above)
+plt.plot(np.arange(5000), Res['trace'][0,:], linestyle='solid')
+plt.hlines(R[t_chosen], 0, 5000, colors='r', linestyles='--');
+
+
+
+
+
 
 ## --------------------------------------------------------------
 ## ----------------------- For GEV params -----------------------
@@ -883,35 +934,6 @@ plt.colorbar();
 
 
 
-
-## -------------------------------------------------------
-## ------------------------ For Rt -----------------------
-## -------------------------------------------------------
-
-# R[0] = 0.074
-t_chosen = 0
-def test(x):
-    return utils.Rt_update_mixture_me_likelihood(Y[:,t_chosen], x, X[:,t_chosen], Z[:,t_chosen], cen[:,t_chosen], cen_above[:,t_chosen], 
-                prob_below, prob_above, Loc[:,t_chosen], Scale[:,t_chosen], Shape[:,t_chosen], tau_sqd, phi, gamma,
-                xp, surv_p, den_p, thresh_X, thresh_X_above) + priors.R_prior(x, gamma)
-
-Rt = np.arange(0.01,0.1,step=0.001)
-Lik = np.zeros(len(Rt))
-for idx, r in enumerate(Rt):
-    Lik[idx] = test(r) 
-plt.plot(Rt, Lik, linestyle='solid')
-plt.axvline(R[t_chosen], color='r', linestyle='--');
-
-
-
-Res = sampler.adaptive_metr(Y[:,t_chosen], R[t_chosen], utils.Rt_update_mixture_me_likelihood, 
-                            priors.R_prior, gamma, 5000, random_generator,
-                            np.nan, True, False, .234, 10, .8,  10,
-                            X[:,t_chosen], Z[:,t_chosen], cen[:,t_chosen], cen_above[:,t_chosen], 
-                            prob_below, prob_above, Loc[:,t_chosen], Scale[:,t_chosen], Shape[:,t_chosen], tau_sqd, phi, gamma,
-                            xp, surv_p, den_p, thresh_X, thresh_X_above)
-plt.plot(np.arange(5000), Res['trace'][0,:], linestyle='solid')
-plt.hlines(R[t_chosen], 0, 5000, colors='r', linestyles='--');
 
 
 ## -------------------------------------------------------

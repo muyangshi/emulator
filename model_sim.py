@@ -656,7 +656,7 @@ def marg_transform_data_mixture_likelihood_1t(Y, X, Loc, Scale, Shape, phi_vec, 
   
   ## Jacobian determinant
   part21 = 0.5*np.sum(Z_vec**2) # 1/standard Normal densities of each Z_j
-  part22 = np.sum(phi_vec*np.log(R_vec) - 2*np.log(X)) # R_j^phi_j/X_j^2
+  part22 = np.sum(-phi_vec*np.log(R_vec)-2*np.log(W_vec+1)) # R_j^phi_j/X_j^2
   part23 = np.sum(dgev(Y, Loc=Loc, Scale=Scale, Shape=Shape, log=True)-np.log(dRW(X, phi_vec, gamma_vec)))
   
   return part1 + part21 + part22 + part23
