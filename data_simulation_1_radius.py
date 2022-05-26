@@ -326,17 +326,54 @@ with open('./data_sim1.pkl', 'wb') as f:
 ## ---------------------------------------------------------
 
 import matplotlib.pyplot as plt
+choose = 2
+phi_at_knots[choose]
+X_star = np.empty(X.shape)
+from scipy.linalg import cholesky
+cholesky_U = cholesky(Cov,lower=False)
+phi_at_knots_proposal = np.empty(phi_at_knots.shape)
 
 def test(phi):
-    return utils.phi_update_mixture_me_likelihood(Y, phi, R, Z, cen, cen_above, prob_below, prob_above, Loc, Scale, Shape, 
-                        tau_sqd, gamma)
+    phi_at_knots_proposal[:] = phi_at_knots
+    phi_at_knots_proposal[choose] = phi
+    phi_vec_star = phi_range_weights @ phi_at_knots_proposal
+    Star_lik = np.empty(n_t)
+    for rank in np.arange(n_t):
+        X_star[:,rank] = utils.gev_2_RW(Y[:,rank], phi_vec_star, gamma_vec, 
+                                  Loc[:,rank], Scale[:,rank], Shape[:,rank])
+        Star_lik[rank] = utils.marg_transform_data_mixture_likelihood_1t(Y[:,rank], X_star[:,rank], Loc[:,rank], Scale[:,rank],
+                                                 Shape[:,rank], phi_vec_star, gamma_vec, R_s[:,rank],
+                                                 cholesky_U)
+    return np.sum(Star_lik)
 
-Phi = np.arange(0.545,0.555,step=0.0001)
+from scipy.linalg import lapack
+def test_1dim(phi, rank):
+    phi_at_knots_proposal[:] = phi_at_knots
+    phi_at_knots_proposal[0] = phi
+    phi_vec_star = phi_range_weights @ phi_at_knots_proposal
+    X_star = np.empty(n_s)
+    X_star[:] = utils.gev_2_RW(Y[:,rank], phi_vec_star, gamma_vec, 
+                                  Loc[:,rank], Scale[:,rank], Shape[:,rank])
+    W_vec = X_star/R_s[:,rank]**phi_vec_star
+    Z_vec = utils.pareto_to_Norm(W_vec)
+    
+    cholesky_inv = lapack.dpotrs(cholesky_U,Z_vec)
+    part1 = -0.5*np.sum(Z_vec*cholesky_inv[0])-np.sum(np.log(np.diag(cholesky_U))) # multivariate density
+  
+    ## Jacobian determinant
+    part21 = 0.5*np.sum(Z_vec**2) # 1/standard Normal densities of each Z_j
+    part22 = np.sum(-phi_vec_star*np.log(R_s[:,rank])-2*np.log(W_vec+1)) # R_j^phi_j/X_j^2
+    part23 = np.sum(utils.dgev(Y[:,rank], Loc=Loc[:,rank], Scale=Scale[:,rank], Shape=Shape[:,rank], log=True)-np.log(utils.dRW(X_star, phi_vec_star, gamma_vec)))
+
+    return (part1, part21, part22, part23)
+
+Phi = np.linspace(phi_at_knots[choose]-0.2,phi_at_knots[choose]+0.2, num=20)
 Lik = np.zeros(len(Phi))
 for idx, phi_tmp in enumerate(Phi):
+    print(idx)
     Lik[idx] = test(phi_tmp)
 plt.plot(Phi, Lik, color='black', linestyle='solid')
-plt.axvline(phi, color='r', linestyle='--');
+plt.axvline(phi_at_knots[choose], color='r', linestyle='--');
 
 
 random_generator = np.random.RandomState()
@@ -453,7 +490,7 @@ def tmpf(radius_knot1):
         Star_lik = -np.inf
     return Star_lik
 
-try_size = 50
+try_size = 30
 x = np.linspace(3.3,3.7, try_size)
 
 func = np.empty(try_size)

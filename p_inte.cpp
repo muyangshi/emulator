@@ -51,9 +51,21 @@ double p_integrand(double x, void * p) {
     return pow(x,phi-1.5)*exp(-gamma /(2*x))/(xval+pow(x,phi));
 }
 
+double p_integrand1(double x, void * p) {
+    struct my_f_params *params = (struct my_f_params *)p;
+    double xval   = (params->xval);
+    double phi  = (params->phi);
+    double gamma = (params->gamma);
+    
+    double tmp0 = 1/(1-x);
+    double tmp1 = 1/phi;
+    double tmp = pow(xval*x*tmp0, -tmp1);
+    return sqrt(tmp)*exp(-gamma*tmp/2)*tmp1*tmp0;
+}
+
 
 /* Distribution function for R^phi*W */
-double pmixture_C(double xval, double phi, double gamma){
+double pmixture_C_inf_integration(double xval, double phi, double gamma){
     double result = 0.0;
     double error;
     double two_pi = boost::math::constants::two_pi<double>();
@@ -86,6 +98,48 @@ double pmixture_C(double xval, double phi, double gamma){
       }
     gsl_integration_workspace_free (w);
     return 1-result*constant;
+}
+
+double pmixture_C(double xval, double phi, double gamma){
+    double result = 0.0;
+    double error = 0.0;
+    double two_pi = boost::math::constants::two_pi<double>();
+    double constant = sqrt(gamma/two_pi);
+    
+    if (xval < 1e-10){
+        return xval*constant*pow(gamma/2, -phi-0.5)*boost::math::tgamma(phi+0.5);
+    }
+    gsl_integration_workspace * w
+      = gsl_integration_workspace_alloc (1e4);
+    gsl_set_error_handler_off();
+    struct my_f_params params = { xval, phi, gamma };
+    int err = 0;
+    if(xval > 10){
+          gsl_function F;
+          F.function = &p_integrand1;
+          F.params = &params;
+          
+           err = gsl_integration_qags (&F, 0.0, 1.0, 1e-14, 1e-14, 1e4,
+                                w, &result, &error);
+          // Error handling: decrease epsabs if diverging
+          if(err == GSL_EDIVERGE){
+               err = gsl_integration_qags (&F, 0.0, 1.0, 1e-7, 1e-7, 1000,
+                                    w, &result, &error);
+            }
+          // Error handling: still diverging
+          if(((err == GSL_EDIVERGE) & (xval > 1e4))|(result < 0)){
+              err = RW_marginal_C(&xval, phi, gamma, 1, &result);
+              result = result/constant;
+            }
+          result = 1-result*constant;
+    }else{
+          result = pmixture_C_inf_integration(xval, phi, gamma);
+    }
+    
+    
+    
+    gsl_integration_workspace_free (w);
+    return result;
 }
 
 /* No gain compared to np.vectorize() */
@@ -203,7 +257,7 @@ double qRW_bisection_C(double p, double phi, double gamma, int n_x){
     int iter=0;
     double new_F = pmixture_C(m, phi, gamma);
     double diff = new_F-p;
-    while ((iter<n_x) & (abs(diff)> 1e-04)){
+    while ((iter<n_x) & (abs(diff)> 1e-12)){
         if (diff>0){
             x_range[1] = m;}
         else{
@@ -230,6 +284,9 @@ double qRW_newton_C(double p, double phi, double gamma, int n_x){
     double error=1;
     double F_value, f_value;
     
+    /* Newton method constantly diverges for large quantile levels */
+    if(p>0.99) {current_x = qRW_bisection_C(p, phi, gamma, 100); return current_x;}
+    
     while ((iter<n_x) & (error> 1e-08)){
         F_value = pmixture_C(current_x , phi, gamma);
         f_value = dmixture_C(current_x , phi, gamma);
@@ -237,9 +294,8 @@ double qRW_newton_C(double p, double phi, double gamma, int n_x){
         error = abs(new_x-current_x);
         iter += 1;
         current_x = fmax(x_range[0], new_x);
-        if(current_x == x_range[0]){current_x = qRW_bisection_C(p, phi, gamma, 100);}
+        if(current_x == x_range[0]){current_x = qRW_bisection_C(p, phi, gamma, 100);break;}
     }
-    
     return current_x;
 }
 
