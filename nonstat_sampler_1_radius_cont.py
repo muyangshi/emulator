@@ -161,6 +161,7 @@ if __name__ == "__main__":
    cholesky_U = cholesky(Cor,lower=False)
 
    # Marginal GEV parameters: per location x time
+   beta_gev_params = comm.bcast(beta_gev_params, root=0)
    loc0 = Design_mat @np.array([beta_gev_params[0],0])
    loc0 = loc0.astype('float64')
    loc1 = Design_mat @np.array([0,0])
@@ -190,7 +191,7 @@ if __name__ == "__main__":
    if rank == 0:
        # radius_knots_within_thinning = np.empty((n_Rt_knots,thinning)); radius_knots_within_thinning[:] = np.nan
        range_knots_within_thinning = np.empty((n_phi_range_knots,thinning)); range_knots_within_thinning[:] = np.nan
-       phi_knots_radius_within_thinning = np.empty((n_phi_range_knots+4,thinning)); phi_knots_radius_within_thinning[:] = np.nan
+       phi_knots_radius_within_thinning = np.empty((n_phi_range_knots+1,thinning)); phi_knots_radius_within_thinning[:] = np.nan
        beta_gev_params_within_thinning = np.empty((n_beta_gev_params,thinning)); beta_gev_params_within_thinning[:] = np.nan
    
    
@@ -201,7 +202,9 @@ if __name__ == "__main__":
    beta_gev_accept = 0
    
    phi_at_knots_and_radius = phi_at_knots_and_radius[:(n_phi_range_knots+1)]
+   prop_Sigma['gev_params'] = prop_Sigma['phi_radius'][(n_phi_range_knots+1):, (n_phi_range_knots+1):]
    prop_Sigma['phi_radius'] = prop_Sigma['phi_radius'][:(n_phi_range_knots+1), :(n_phi_range_knots+1)]
+   sigma_m['gev_params'] = sigma_m['phi_radius']
    
    # -----------------------------------------------------------------------------------
    # -----------------------------------------------------------------------------------
@@ -343,6 +346,12 @@ if __name__ == "__main__":
            Star_lik = utils.marg_transform_data_mixture_likelihood_1t(Y[:,rank], Xt_star, Loc[:,rank], Scale[:,rank],
                                               Shape[:,rank], phi_vec_star, gamma_vec_star, Rt_s_star,
                                               cholesky_U)
+           Star_lik_d = utils.marg_transform_data_mixture_likelihood_1t_detail(Y[:,rank], Xt_star, Loc[:,rank], Scale[:,rank],
+                                              Shape[:,rank], phi_vec_star, gamma_vec_star, Rt_s_star,
+                                              cholesky_U)
+           Current_lik_d = utils.marg_transform_data_mixture_likelihood_1t_detail(Y[:,rank], Xt, Loc[:,rank], Scale[:,rank],
+                                              Shape[:,rank], phi_vec, gamma_vec, Rt_s,
+                                              cholesky_U)
        Star_Lik_recv = comm.gather(Star_lik,root=0)
 
        # Determine update or not
@@ -427,6 +436,7 @@ if __name__ == "__main__":
            Shape[:] = Shape_star
            Xt[:] = Xt_star
            Current_lik = Star_lik
+           beta_gev_params[:] = beta_gev_params_star
        # time_spent = time.time()-start_time
        # print(rank, time_spent)  
      

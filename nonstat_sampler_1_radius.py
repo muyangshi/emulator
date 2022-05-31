@@ -371,6 +371,7 @@ if __name__ == "__main__":
        accept = comm.bcast(accept,root=0)
        if accept==1:
            phi_vec[:] = phi_vec_star
+           beta_gev_params[:] = beta_gev_params_star
            Xt[:] = Xt_star
            R_weights[:] = R_weights_star
            gamma_vec[:] = gamma_vec_star
