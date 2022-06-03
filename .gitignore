@@ -7,3 +7,4 @@
 
 # Chache and Logs
 __pycache__/
+*.pyc
