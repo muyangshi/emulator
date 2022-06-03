@@ -4,3 +4,6 @@
 
 # Machine-dependent binary
 *.so
+
+# Chache and Logs
+__pycache__/
