@@ -35,7 +35,7 @@ import os, ctypes
 # from scipy import LowLevelCallable
 
 # g++ -std=c++11 -shared -fPIC -o p_inte.so p_inte.cpp
-lib = ctypes.CDLL(os.path.abspath('./p_inte.so')) # ./nonstat_Pareto1/p_inte.so
+lib = ctypes.CDLL(os.path.abspath('./p_inte.so'))
 i_and_o_type = np.ctypeslib.ndpointer(ndim=1, dtype=np.float64)
 # grid_type  = np.ctypeslib.ndpointer(ndim=1, dtype=np.float64)
 # bool_type  = np.ctypeslib.ndpointer(ndim=1, dtype='bool')
