@@ -12,3 +12,7 @@ __pycache__/
 # Datafiles
 *.npy
 *.png
+*.npz
+
+# Links
+*.url
