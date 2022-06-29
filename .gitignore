@@ -16,3 +16,7 @@ __pycache__/
 
 # Links
 *.url
+
+# Resources
+*.html
+*.pdf
