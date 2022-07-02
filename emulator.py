@@ -305,45 +305,45 @@ gp_scikit_M3_y_pred_test = np.load('./data/gp_scikit_M3_y_pred_test.npy')
 
 # gp_emulator
 print('gp_emulator')
-print(MSE(gp_y_pred_all,y))
-print(MSE(gp_y_pred_test,y_test))
-print(MSE(gp_y_pred_train,y_train))
+print('overall',MSE(gp_y_pred_all,y))
+print('test',MSE(gp_y_pred_test,y_test))
+print('train',MSE(gp_y_pred_train,y_train))
 
 # Scikit RBF
 print('Scikit RBF')
-print(MSE(gp_scikit_RBF_y_pred_all,y))
-print(MSE(gp_scikit_RBF_y_pred_test,y_test))
-print(MSE(gp_scikit_RBF_y_pred_train,y_train))
+print('overall',MSE(gp_scikit_RBF_y_pred_all,y))
+print('test',MSE(gp_scikit_RBF_y_pred_test,y_test))
+print('train',MSE(gp_scikit_RBF_y_pred_train,y_train))
 
 # Scikit RQ
 print('Scikit Rational Quadratic')
-print(MSE(gp_scikit_RQ_y_pred_all,y))
-print(MSE(gp_scikit_RQ_y_pred_test,y_test))
-print(MSE(gp_scikit_RQ_y_pred_train,y_train))
+print('overall',MSE(gp_scikit_RQ_y_pred_all,y))
+print('test',MSE(gp_scikit_RQ_y_pred_test,y_test))
+print('train',MSE(gp_scikit_RQ_y_pred_train,y_train))
 
 # Scikit Dot Product
 print('Scikit Dot Product')
-print(MSE(gp_scikit_DP_y_pred_all,y))
-print(MSE(gp_scikit_DP_y_pred_test,y_test))
-print(MSE(gp_scikit_DP_y_pred_train,y_train))
+print('overall',MSE(gp_scikit_DP_y_pred_all,y))
+print('test',MSE(gp_scikit_DP_y_pred_test,y_test))
+print('train',MSE(gp_scikit_DP_y_pred_train,y_train))
 
 # Scikit Matern 1/2
 print('Scikit Matern nu = 0.5')
-print(MSE(gp_scikit_M1_y_pred_all,y))
-print(MSE(gp_scikit_M1_y_pred_test,y_test))
-print(MSE(gp_scikit_M1_y_pred_train,y_train))
+print('overall',MSE(gp_scikit_M1_y_pred_all,y))
+print('test',MSE(gp_scikit_M1_y_pred_test,y_test))
+print('train',MSE(gp_scikit_M1_y_pred_train,y_train))
 
 # Scikit Matern 3/2
 print('Scikit Matern nu = 1.5')
-print(MSE(gp_scikit_M2_y_pred_all,y))
-print(MSE(gp_scikit_M2_y_pred_test,y_test))
-print(MSE(gp_scikit_M2_y_pred_train,y_train))
+print('overall',MSE(gp_scikit_M2_y_pred_all,y))
+print('test',MSE(gp_scikit_M2_y_pred_test,y_test))
+print('train',MSE(gp_scikit_M2_y_pred_train,y_train))
 
 # Scikit Matern 5/2
 print('Scikit Matern nu = 2.5')
-print(MSE(gp_scikit_M3_y_pred_all,y))
-print(MSE(gp_scikit_M3_y_pred_test,y_test))
-print(MSE(gp_scikit_M3_y_pred_train,y_train))
+print('overall',MSE(gp_scikit_M3_y_pred_all,y))
+print('test',MSE(gp_scikit_M3_y_pred_test,y_test))
+print('train',MSE(gp_scikit_M3_y_pred_train,y_train))
 
 
 # %%
