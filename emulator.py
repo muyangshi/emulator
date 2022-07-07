@@ -1,15 +1,24 @@
+# n_tries
+# n_restarts_optimizer
+# training_size
+
 # %%
 # imports
 # -------
 from model_sim import *
-from operator import itemgetter
-import numpy as np
+
 import math
+import time
+from operator import itemgetter
+
+import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
+
 import gp_emulator
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, DotProduct, Matern
+from sklearn.model_selection import KFold
 
 # %%
 # Define Helper Functions
@@ -56,6 +65,36 @@ def SSE(y_pred, y_true):
 def MSE(y_pred, y_true):
     return SSE(y_pred, y_true)/y_true.size
 
+def train_gp(X_train, y_train):
+    start_time = time.time()
+    gp = gp_emulator.GaussianProcess(inputs = X_train, targets = y_train)
+    gp.learn_hyperparameters(n_tries = 5, verbose = False)
+    print('gp_emulator done', time.time() - start_time)
+    return gp
+
+def train_scikit(X_train, y_train, kernel):
+    start_time = time.time()
+    gp_scikit = GaussianProcessRegressor(kernel = kernel, n_restarts_optimizer = 5)
+    gp_scikit.fit(X_train, y_train)
+    print('scikit done', time.time() - start_time)
+    return gp_scikit
+
+def pack_MSE(type, gaussian_process, X, X_test, X_train, y, y_test, y_train):
+    """
+    return [overall, test, train] MSE values
+    """
+    if type == 'gp_emulator':
+        y_pred_all = gaussian_process.predict(X, do_unc=False, do_deriv=False)[0]
+        y_pred_test = gaussian_process.predict(X_test, do_unc=False, do_deriv=False)[0]
+        y_pred_train = gaussian_process.predict(X_train, do_unc=False, do_deriv=False)[0]
+    elif type == 'scikit':
+        y_pred_all = gaussian_process.predict(X, return_std = False)
+        y_pred_test = gaussian_process.predict(X_test, return_std = False)
+        y_pred_train = gaussian_process.predict(X_train, return_std = False)
+    else:
+        raise Exception('gp_emulator or scikit')
+    return [MSE(y_pred_all,y), MSE(y_pred_test,y_test), MSE(y_pred_train,y_train)]
+
 # %%
 ###########
 # DATASET #
@@ -94,13 +133,14 @@ y = np.load('./data/y.npy')
 x_grid = np.load('./data/x_grid.npy')
 phi_coor = np.load('./data/phi_coor.npy')
 gamma_coor = np.load('./data/gamma_coor.npy')
+X = x_grid
 
 # %%
 # Splitting Dataset
 # -----------------
 np.random.seed(42)
 n_samples = y.size
-training_size = math.floor(n_samples * 0.2)
+training_size = math.floor(n_samples * 0.5)
 training_indices = np.random.choice(n_samples,training_size,replace = False)
 testing_indices = np.setdiff1d(np.arange(0,n_samples),training_indices)
 X_train, y_train = x_grid[training_indices], y[training_indices]
@@ -386,4 +426,104 @@ draw3D(title, X, Y, Z_pred, Z_true)
 # ax.set_ylabel('gamma')
 # ax.set_zlabel('inverse')
 # plt.show()
+
+#########################
+## Training Simplified ##
+#########################
 # %%
+# training with 50% of data
+# (re-write of training, simplified)
+# ----------------------------------
+
+# Training
+gp = train_gp(X_train, y_train)
+gp_scikit_RBF = train_scikit(X_train, y_train, RBF())
+gp_scikit_RQ = train_scikit(X_train, y_train, RationalQuadratic())
+# gp_scikit_DP = train_scikit(X_train, y_train, DotProduct())
+gp_scikit_M1 = train_scikit(X_train, y_train, Matern(nu=0.5))
+gp_scikit_M2 = train_scikit(X_train ,y_train, Matern(nu=1.5))
+gp_scikit_M3 = train_scikit(X_train, y_train, Matern(nu=2.5))
+
+# Results
+gp_MSE = pack_MSE('gp_emulator', gp, X, X_test, X_train, y, y_test, y_train)
+RBF_MSE = pack_MSE('scikit',gp_scikit_RBF, X, X_test, X_train, y, y_test, y_train)
+RQ_MSE = pack_MSE('scikit',gp_scikit_RQ, X, X_test, X_train, y, y_test, y_train)
+# DP_MSE = pack_MSE('scikit',gp_scikit_DP, X, X_test, X_train, y, y_test, y_train)
+M1_MSE = pack_MSE('scikit',gp_scikit_M1, X, X_test, X_train, y, y_test, y_train)
+M2_MSE = pack_MSE('scikit',gp_scikit_M2, X, X_test, X_train, y, y_test, y_train)
+M3_MSE = pack_MSE('scikit',gp_scikit_M3, X, X_test, X_train, y, y_test, y_train)
+
+gp.save_emulator('./data/training_50_percent/gp')
+save_scikit_emulator('./data/training_50_percent/gp_scikit_RBF',gp_scikit_RBF)
+save_scikit_emulator('./data/training_50_percent/gp_scikit_RQ',gp_scikit_RQ)
+# save_scikit_emulator('./data/training_50_percent/gp_scikit_DP',gp_scikit_DP)
+save_scikit_emulator('./data/training_50_percent/gp_scikit_M1',gp_scikit_M1)
+save_scikit_emulator('./data/training_50_percent/gp_scikit_M2',gp_scikit_M2)
+save_scikit_emulator('./data/training_50_percent/gp_scikit_M3',gp_scikit_M3)
+
+np.save('./data/training_50_percent/gp_MSE',gp_MSE)
+np.save('./data/training_50_percent/RBF_MSE',RBF_MSE)
+np.save('./data/training_50_percent/RQ_MSE',RQ_MSE)
+# np.save('./data/training_50_percent/DP_MSE',DP_MSE)
+np.save('./data/training_50_percent/M1_MSE',M1_MSE)
+np.save('./data/training_50_percent/M2_MSE',M2_MSE)
+np.save('./data/training_50_percent/M3_MSE',M3_MSE)
+
+# Example Graph
+gp_scikit_RBF = load_scikit_emulator('./data/training_50_percent/gp_scikit_RBF.npz')
+Z_pred = gp_scikit_RBF.predict(X)
+title = '0.9 quantile'
+X = phi_coor.ravel()
+Y = gamma_coor.ravel()
+Z_true = y
+draw3D(title, X, Y, Z_pred, Z_true)
+######################
+## Cross Validation ##
+######################
+# %%
+
+# Place to Store Results:
+gp_MSEs, RBF_MSEs, RQ_MSEs, DP_MSEs, M1_MSEs, M2_MSEs, M3_MSEs = [[] for i in range(7)]
+
+kf = KFold(n_splits = 2, shuffle = True, random_state = 42)
+
+for train_index, test_index in kf.split(x_grid):
+    # Partitioning the Dataset:
+    X_train, X_test = x_grid[train_index,:], x_grid[test_index,:]
+    y_train, y_test = y[train_index], y[test_index]
+
+    # Training:
+    gp = train_gp(X_train, y_train)
+    gp_scikit_RBF = train_scikit(X_train, y_train, RBF())
+    gp_scikit_RQ = train_scikit(X_train, y_train, RationalQuadratic())
+    gp_scikit_DP = train_scikit(X_train, y_train, DotProduct())
+    gp_scikit_M1 = train_scikit(X_train, y_train, Matern(nu=0.5))
+    gp_scikit_M2 = train_scikit(X_train ,y_train, Matern(nu=1.5))
+    gp_scikit_M3 = train_scikit(X_train, y_train, Matern(nu=2.5))
+
+    # Store Results
+    gp_MSEs.append(pack_MSE('gp_emulator', gp, X, X_test, X_train, y, y_test, y_train))
+    RBF_MSEs.append(pack_MSE('scikit',gp_scikit_RBF, X, X_test, X_train, y, y_test, y_train))
+    RQ_MSEs.append(pack_MSE('scikit',gp_scikit_RQ, X, X_test, X_train, y, y_test, y_train))
+    DP_MSEs.append(pack_MSE('scikit',gp_scikit_DP, X, X_test, X_train, y, y_test, y_train))
+    M1_MSEs.append(pack_MSE('scikit',gp_scikit_M1, X, X_test, X_train, y, y_test, y_train))
+    M2_MSEs.append(pack_MSE('scikit',gp_scikit_M2, X, X_test, X_train, y, y_test, y_train))
+    M3_MSEs.append(pack_MSE('scikit',gp_scikit_M3, X, X_test, X_train, y, y_test, y_train))
+
+gp_MSE = np.mean(gp_MSEs, axis = 0)
+RBF_MSE = np.mean(RBF_MSEs, axis = 0)
+RQ_MSE = np.mean(RQ_MSEs, axis = 0)
+DP_MSE = np.mean(DP_MSEs, axis = 0)
+M1_MSE = np.mean(M1_MSEs, axis = 0)
+M2_MSE = np.mean(M2_MSEs, axis = 0)
+M3_MSE = np.mean(M3_MSEs, axis = 0)
+
+np.save('./data/CV/gp_MSE',gp_MSE)
+np.save('./data/CV/RBF_MSE',RBF_MSE)
+np.save('./data/CV/RQ_MSE',RQ_MSE)
+np.save('./data/CV/DP_MSE',DP_MSE)
+np.save('./data/CV/M1_MSE',M1_MSE)
+np.save('./data/CV/M2_MSE',M2_MSE)
+np.save('./data/CV/M3_MSE',M3_MSE)
+
+
