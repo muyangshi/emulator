@@ -2,6 +2,9 @@
 **/.DS_Store
 .vscode/
 
+# Logs
+log/
+
 # Machine-dependent binary
 *.so
 
@@ -13,6 +16,7 @@ __pycache__/
 *.npy
 *.png
 *.npz
+*.pickle
 
 # Links
 *.url
