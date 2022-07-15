@@ -54,16 +54,16 @@ def SSE(y_pred, y_true):
 def MSE(y_pred, y_true):
     return SSE(y_pred, y_true)/y_true.size
 
-# def train_gp(X_train, y_train):
-#     start_time = time.time()
-#     gp = gp_emulator.GaussianProcess(inputs = X_train, targets = y_train)
-#     gp.learn_hyperparameters(n_tries = 5, verbose = False)
-#     print('gp_emulator done', time.time() - start_time)
-#     return gp
+def train_gp(X_train, y_train):
+    start_time = time.time()
+    gp = gp_emulator.GaussianProcess(inputs = X_train, targets = y_train)
+    gp.learn_hyperparameters(n_tries = 5, verbose = False)
+    print('gp_emulator done', time.time() - start_time)
+    return gp
 
 def train_scikit(X_train, y_train, kernel):
     start_time = time.time()
-    gp_scikit = GaussianProcessRegressor(kernel = kernel, n_restarts_optimizer = 10)
+    gp_scikit = GaussianProcessRegressor(kernel = kernel, n_restarts_optimizer = 10,copy_X_train=False)
     gp_scikit.fit(X_train, y_train)
     print('scikit done', time.time() - start_time)
     return gp_scikit
@@ -84,25 +84,27 @@ def pack_MSE(type, gaussian_process, X, X_test, X_train, y, y_test, y_train):
         raise Exception('gp_emulator or scikit')
     return [MSE(y_pred_all,y), MSE(y_pred_test,y_test), MSE(y_pred_train,y_train)]
 
-data = np.load('./data/data.npy')
+# data = np.load('./data/data.npy')
 y = np.load('./data/y.npy')
-x_grid = np.load('./data/x_grid.npy')
+# x_grid = np.load('./data/x_grid.npy')
 phi_coor = np.load('./data/phi_coor.npy')
 gamma_coor = np.load('./data/gamma_coor.npy')
-X = x_grid
+X = np.load('./data/X.npy')
 
 np.random.seed(42)
 n_samples = y.size
 training_size = math.floor(n_samples * 0.2)
 training_indices = np.random.choice(n_samples,training_size,replace = False)
 testing_indices = np.setdiff1d(np.arange(0,n_samples),training_indices)
-X_train, y_train = x_grid[training_indices], y[training_indices]
-X_test, y_test = x_grid[testing_indices], y[testing_indices]
+X_train, y_train = X[training_indices], y[training_indices]
+X_test, y_test = X[testing_indices], y[testing_indices]
 
+print('start training')
 gp_scikit_RBF = train_scikit(X_train, y_train, RBF())
-RBF_kernel = RBF(length_scale=np.array([1,1]))
-gp_scikit_RBF2 = train_scikit(X_train,y_train,RBF_kernel)
 RBF_MSE = pack_MSE('scikit',gp_scikit_RBF, X, X_test, X_train, y, y_test, y_train)
 print(RBF_MSE)
+print(type(gp_scikit_RBF))
 
-RBF_MSE2 = pack_MSE('scikit',gp_scikit_RBF2, X, X_test, X_train, y, y_test, y_train)
+import pickle
+with open('test_scikit.pickle','wb') as f:
+    pickle.dump(gp_scikit_RBF, f, pickle.HIGHEST_PROTOCOL)
