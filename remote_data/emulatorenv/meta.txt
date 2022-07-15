@@ -1,0 +1,16 @@
+Trained on Summit
+
+anaconda/2020.11 with python 3.8.10
+
+Loaded Modules--------------------
+gcc 6.1.0
+gsl 2.4
+openmpi 1.10.2
+boost 1.61.0
+
+Python packages-------------------
+sklearn 1.1.1
+numpy 1.22.3
+scipy 1.7.3
+mpmath 1.2.1
+matplotlib 3.5.1
