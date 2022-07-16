@@ -351,6 +351,9 @@ def qRW_newton(p, phi, gamma, n_x=400):
         
     return current_x
 
+# Python Numerical Integration
+qRW_Newton_py = np.vectorize(qRW_newton, excluded=['n_x'])
+
 # C++ implementation
 qRW_Newton = np.vectorize(lib.qRW_newton_C, excluded=['n_x'])
     
