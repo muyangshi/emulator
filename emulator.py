@@ -19,12 +19,6 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, DotProduct, Matern
 from sklearn.model_selection import KFold
 
-# %%
-# Configure Training Settings
-# Global Parameters
-# ---------------------------
-# n_restarts = 5
-# training_percent = 0.5
 
 # %%
 # Define Helper Functions
@@ -57,13 +51,13 @@ def draw3D(quantile,X,Y,Z_pred,Z_true):
     ax.set_zlabel(r'$F^{-1}$')
     plt.show()
 
-def save_scikit_emulator(name: str,obj):
-    np.savez(name,obj)
+# def save_scikit_emulator(name: str,obj):
+#     np.savez(name,obj)
 
-def load_scikit_emulator(file):
-    loaded_npzfile = np.load(file, allow_pickle=True)
-    loaded_gaussian_process = loaded_npzfile['arr_0'][()]
-    return loaded_gaussian_process
+# def load_scikit_emulator(file):
+#     loaded_npzfile = np.load(file, allow_pickle=True)
+#     loaded_gaussian_process = loaded_npzfile['arr_0'][()]
+#     return loaded_gaussian_process
 
 def SSE(y_pred, y_true):
     return sum((y_pred - y_true)**2)
@@ -87,33 +81,15 @@ def pack_MSE(type, gaussian_process, X, X_test, X_train, y, y_test, y_train):
         raise Exception('gp_emulator or scikit')
     return [MSE(y_pred_all,y), MSE(y_pred_test,y_test), MSE(y_pred_train,y_train)]
 
-def train_config(n,percent):
-    """
-    Modify the global parameters n_restarts and portion used for training
-    """
-    global n_restarts
-    global training_percent
-    n_restarts = n
-    training_percent = percent
-    print(f'n_restarts: {n_restarts}, training_percent: {training_percent}')
-    pass
-
-# def train_gp(X_train, y_train):
+# def train_scikit(X_train, y_train, kernel):
 #     start_time = time.time()
-#     gp = gp_emulator.GaussianProcess(inputs = X_train, targets = y_train)
-#     gp.learn_hyperparameters(n_tries = n_restarts, verbose = False)
-#     print('gp_emulator done', time.time() - start_time)
-#     return gp
-
-def train_scikit(X_train, y_train, kernel):
-    start_time = time.time()
-    print('n_restarts:', n_restarts)
-    gp_scikit = GaussianProcessRegressor(kernel = kernel, 
-                                        n_restarts_optimizer = n_restarts,
-                                        copy_X_train = False)
-    gp_scikit.fit(X_train, y_train)
-    print('scikit done', time.time() - start_time)
-    return gp_scikit
+#     print('n_restarts:', n_restarts)
+#     gp_scikit = GaussianProcessRegressor(kernel = kernel, 
+#                                         n_restarts_optimizer = n_restarts,
+#                                         copy_X_train = False)
+#     gp_scikit.fit(X_train, y_train)
+#     print('scikit done', time.time() - start_time)
+#     return gp_scikit
 
 def load_all(path):
     """
@@ -158,7 +134,8 @@ def generate_all(X_dim,training_proportion,path):
     
     # y
     start_time = time.time()
-    y = qRW_Newton_py(p_coor, phi_coor, gamma_coor,400) # shape = (v1*v2*...*vn,1)
+    # y = qRW_Newton_py(p_coor, phi_coor, gamma_coor,400) # shape = (v1*v2*...*vn,1)
+    y = qRW_Newton(p_coor, phi_coor, gamma_coor, 400) # C++ quantile function
     end_time = time.time()
     print('y calculated. Used: ', round(end_time - start_time, 2), ' seconds.')
     y = y.ravel()
@@ -186,7 +163,7 @@ def train(name: str = 'No_Name', X_dim: int = 2,
     path = './data/' + name + '/'
     n_restarts = restarts
     training_proportion = proportion
-    train_RBF, train_RQ, train_M1, train_M2, train_M3 = True, False, False, False, False
+    train_RBF, train_DP_RBF, train_RQ, train_M1, train_M2, train_M3 = True, True, False, False, False, False
 
     # Generate/Load Dataset
     print('\n##### Generate/Load Dataset #####\n')
@@ -210,14 +187,25 @@ def train(name: str = 'No_Name', X_dim: int = 2,
         print('training with Radial Basis Function Kernel')
         start_time = time.time()
         gp_scikit_RBF = GaussianProcessRegressor(
-                            kernel = RBF(length_scale=np.ones(X_dim)),
+                            kernel = RBF(length_scale=np.ones(X_dim),length_scale_bounds=(0.01,100000)),
                             n_restarts_optimizer=n_restarts,
-                            copy_X_train=False).fit(X_train, y_train)
+                            copy_X_train=False,
+                            normalize_y=True).fit(X_train, y_train)
         end_time = time.time()
         print('RBF: ', round(end_time - start_time,2),' seconds.')
-        RBF_MSE = pack_MSE('scikit',gp_scikit_RBF, X, X_test, X_train, y, y_test, y_train)
+        # RBF_MSE = pack_MSE('scikit',gp_scikit_RBF, X, X_test, X_train, y, y_test, y_train)
+        # print(RBF_MSE)
+        start_time = time.time()
+        y_pred_all = gp_scikit_RBF.predict(X,return_std=False)
+        print('RBF predict X: ', round(time.time() - start_time,2),' seconds')
+        y_pred_test = gp_scikit_RBF.predict(X_test,return_std=False)
+        y_pred_train = gp_scikit_RBF.predict(X_train,return_std=False)
+        RBF_MSE = [MSE(y_pred_all, y),MSE(y_pred_test,y_test),MSE(y_pred_train,y_train)]
         print(RBF_MSE)
         np.save(path + 'RBF_MSE', RBF_MSE)
+        np.save(path + 'y_pred_all',y_pred_all)
+        np.save(path + 'y_pred_test',y_pred_test)
+        np.save(path + 'y_pred_train',y_pred_train)
         with open(path+'gp_scikit_RBF.pickle','wb') as f:
             pickle.dump(gp_scikit_RBF,f,pickle.HIGHEST_PROTOCOL)
     if train_RQ == True:
@@ -269,17 +257,6 @@ def train(name: str = 'No_Name', X_dim: int = 2,
         print(M3_MSE)
         np.save(path + 'M3_MSE', M3_MSE)
     return
-
-
-# %%
-# Tests and Scratch
-# --------------------------------------------------------------------------------------------------
-def test_param(data_exist = False, save_emulator = True):
-    print('data_exist: ', data_exist)
-    print('data_exist == True: ', data_exist==True)
-    print('save_emulator: ', save_emulator)
-    print('save_emulator == True: ', save_emulator == True)
-    print('type(data_exist)', type(data_exist))
 
 # %%
 # main
