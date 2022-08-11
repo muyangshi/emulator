@@ -19,6 +19,7 @@ __pycache__/
 *.npz
 *.pickle
 data/
+remote_data/*
 docs/
 
 # Links
