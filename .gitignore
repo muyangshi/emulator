@@ -9,7 +9,7 @@ log/
 # Machine-dependent binary
 *.so
 
-# Chache and Logs
+# Cache and Logs
 __pycache__/
 *.pyc
 
@@ -18,6 +18,8 @@ __pycache__/
 *.png
 *.npz
 *.pickle
+data/
+docs/
 
 # Links
 *.url
