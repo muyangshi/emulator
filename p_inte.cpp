@@ -6,6 +6,8 @@
 #include <boost/math/constants/constants.hpp>
 #include <boost/math/special_functions/gamma.hpp>
 #include <gsl/gsl_errno.h>
+#include <gsl/gsl_randist.h> // the functions for random variates and probability density functions
+#include <gsl/gsl_cdf.h> //the corresponding cumulative distribution functions
 
 extern "C"
 {
@@ -298,5 +300,60 @@ double qRW_newton_C(double p, double phi, double gamma, int n_x){
     }
     return current_x;
 }
+
+//------------------------------------------------------------------------------------------
+/* Calculate F_X(x) */
+
+// double first_integrand (double epislon, void * params) { // inte_x^\inf \phi(\epsilon) d\epsilon
+//     // double params[] = { xval, phi, gamma, tao };
+//     double tao = (*(double[] *) params)[3];
+//     double tao = *(double *) params;
+//     double integrand = gsl_ran_gaussian_pdf(epsilon, tao);
+//     return integrand
+// }
+
+double nugget_F_second_integrand (double epsilon, void * params_ptr) { // phi(epsilon) * pmixture_C(xval-epsilon, phi, gamma)
+    double xval  = (*(double(*)[4]) params_ptr)[0];
+    double phi   = (*(double(*)[4]) params_ptr)[1];
+    double gamma = (*(double(*)[4]) params_ptr)[2];
+    double tao   = (*(double(*)[4]) params_ptr)[3];
+    double integrand = gsl_ran_gaussian_pdf(epsilon, tao)*(1.0 - pmixture_C(xval-epsilon, phi, gamma));
+    return integrand;
+}
+
+
+double nugget_F (double xval, double phi, double gamma, double tao){
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (10000);
+
+    /* Calculate part 2 integral */
+
+    double result_part_2, error_part_2;
+    double params[4] = { xval, phi, gamma, tao }; // params is an array of 4 doubles
+    // double (*params_ptr)[4] = &params; // `params_ptr` is a pointer that point to `an array of 4 doubles`,
+                                        // the base type of `params_ptr` is `an array of 4 doubles`
+
+    gsl_function nugget_F_part_2;
+    nugget_F_part_2.function = &nugget_F_second_integrand;
+    nugget_F_part_2.params = &params;
+
+    // int gsl_integration_qagil(gsl_function *f, double b, double epsabs, double epsrel, size_t limit, 
+    //                              gsl_integration_workspace *workspace, double *result, double *abserr)
+
+    gsl_integration_qagil(&nugget_F_part_2, xval, 1e-14, 1e-14, 10000,
+                            w, &result_part_2, &error_part_2);
+
+    gsl_integration_workspace_free (w);
+
+    /* Calculate part 1 integral */
+
+    double result_part_1;
+    result_part_1 = gsl_cdf_gaussian_Q (xval, tao);
+
+    double F;
+    F = 1 - (result_part_1 + result_part_2);
+
+    return F;
+}
+
 
 }
