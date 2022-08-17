@@ -473,8 +473,8 @@ double F_X_part_2_QAGS (double xval, double phi, double gamma, double tau) {
 
 double F_X (double xval, double phi, double gamma, double tau) {
     double result_part_1 = F_X_part_1(xval, phi, gamma, tau);
-    double result_part_2 = F_X_part_2(xval, phi, gamma, tau);
-    // double result_part_2 = F_X_part_2_QAG(xval, phi, gamma, tau);
+    // double result_part_2 = F_X_part_2(xval, phi, gamma, tau);
+    double result_part_2 = F_X_part_2_QAG(xval, phi, gamma, tau);
     // double result_part_2 = F_X_part_2_CQUAD(xval, phi, gamma, tau);
     // double result_part_2 = F_X_part_2_QAGS(xval, phi, gamma, tau);
     double F = 1 - (result_part_1 + result_part_2);
@@ -503,7 +503,7 @@ double f_X_second_integrand (double r, void * params_ptr) { // params is an arra
 }
 
 /* integrand of \int_{-\infty}^x \varphi(\epsilon) f_{X^*}(x-\epsilon)d\epsilon */
-double f_X_thrid_integrand (double epsilon, void * params_ptr) { // params is an array of 5 doubles {p, phi, gamma, tau, x}
+double f_X_third_integrand (double epsilon, void * params_ptr) { // params is an array of 5 doubles {p, phi, gamma, tau, x}
     // double p     = (*(double(*)[4]) params_ptr)[0];
     double phi   = (*(double(*)[5]) params_ptr)[1];
     double gamma = (*(double(*)[5]) params_ptr)[2];
@@ -519,8 +519,8 @@ double function_to_solve (double x, void * params_ptr) {
     double gamma = (*(double(*)[4]) params_ptr)[2];
     double tau   = (*(double(*)[4]) params_ptr)[3];
 
-    return F_X(x, phi, gamma, tau) - p;
-    // return F_X_cheat(x, phi, gamma, tau) - p;
+    // return F_X(x, phi, gamma, tau) - p;
+    return F_X_cheat(x, phi, gamma, tau) - p;
 }
 
 double function_to_solve_df (double x, void * params_ptr) {
@@ -552,13 +552,23 @@ double function_to_solve_df (double x, void * params_ptr) {
     double part_3;
     double params_part_3[5] = { p, phi, gamma, tau, x};
 
+    // gsl_integration_workspace * w3 = gsl_integration_workspace_alloc (10000);
+    // double part_3_integral_result, part_3_integral_error;
+    // gsl_function f_X_part_3;
+    // f_X_part_3.function = &f_X_third_integrand;
+    // f_X_part_3.params = &params_part_3;
+    // gsl_integration_qagil(&f_X_part_3, x, 1e-12, 1e-12, 10000,
+    //                         w3, &part_3_integral_result, &part_3_integral_error);
+    // gsl_integration_workspace_free (w3);
+
     gsl_integration_workspace * w3 = gsl_integration_workspace_alloc (10000);
     double part_3_integral_result, part_3_integral_error;
     gsl_function f_X_part_3;
-    f_X_part_3.function = &f_X_thrid_integrand;
+    f_X_part_3.function = &f_X_third_integrand;
     f_X_part_3.params = &params_part_3;
-    gsl_integration_qagil(&f_X_part_3, x, 1e-12, 1e-12, 10000,
-                            w3, &part_3_integral_result, &part_3_integral_error);
+    double LB = -38*tau;
+    gsl_integration_qag(&f_X_part_3, LB, x, 1e-12, 1e-12, 10000,
+                        6, w3, &part_3_integral_result, &part_3_integral_error);
     gsl_integration_workspace_free (w3);
 
     part_3 = part_3_integral_result;
@@ -578,6 +588,13 @@ void function_to_solve_fdf (double x, void * params_ptr,
 }
 
 double quantile_F_X (double p, double phi, double gamma, double tau) {
+    if (p > 0.99) {
+        printf ("p is: % .10f \n", p);
+        double qRW = qRW_newton_C(p, phi, gamma, 100);
+        // printf ("qRW is: % .10f \n", qRW);
+        return qRW;
+    }
+    // std::cout << "i'm here" << "\n";
     int status;
     int iter = 0, max_iter = 100;
     const gsl_root_fdfsolver_type *T; // Root Finding Algorithms using Derivatives
@@ -653,9 +670,20 @@ int main(void){
     double xval = 1;
     double phi = 1;
     double gamma = 2;
-    double tau = 1;
+    double tau = 10;
 
     double F_X_value = 0;
+
+    // double LB = find_lower_bound(tau);
+    // std::cout << "LB: " << LB << "\n";
+
+    // for (int i = LB; i > 2*LB; i-=tau) {
+    //     std::cout << i << ": ";
+    //     std::cout << gsl_ran_gaussian_pdf(i, tau) << "\n";
+    // }
+
+    // std::cout << "38 tau: " << gsl_ran_gaussian_pdf(38*tau, tau) << "\n";
+    // std::cout << "39 tau: " << gsl_ran_gaussian_pdf(39*tau, tau) << "\n";
 
     // while (F_X_value != 1) {
     //     F_X_value = F_X (xval, phi, gamma, tau);
@@ -665,14 +693,15 @@ int main(void){
     //     xval++;
     // }
 
-    while (F_X_value != 1 && xval < 36) {
-        F_X_value = F_X(xval, phi, gamma, tau);
+    while (F_X_value != 1 && xval < 2e16) {
+        // F_X_value = F_X(xval, phi, gamma, tau);
         double F_X_star_value = pmixture_C(xval, phi, gamma);
-        // F_X_value = F_X_cheat (xval, phi, gamma, tau);
+        double F_X_value = F_X_cheat (xval, phi, gamma, tau);
         std::cout << std::setprecision(10) << std::fixed;
         std::cout << "xval: " << xval << "\n";
         std::cout << "F_X  is: " << F_X_value << "\n";
         std::cout << "F_X* is: " << F_X_star_value << "\n";
+        // std::cout << "F_Xc is: " << F_X_cheat_value << "\n";
 
         double quantile_F_X_value = quantile_F_X(F_X_value, phi, gamma, tau);
         double quantile_F_X_star_value = qRW_newton_C(F_X_star_value, phi, gamma, 100);
@@ -680,8 +709,8 @@ int main(void){
         std::cout << "quantile_F_X*: " << quantile_F_X_star_value << "\n";
 
         std::cout << "\n";
-        // xval = xval*2;
-        xval++;
+        xval = xval*2;
+        // xval++;
     }
 
     // F_X_value = F_X(5842539116055501347301368646571393024.0, phi, gamma, tau);
