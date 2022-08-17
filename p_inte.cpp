@@ -8,6 +8,8 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_randist.h> // the functions for random variates and probability density functions
 #include <gsl/gsl_cdf.h> //the corresponding cumulative distribution functions
+#include <gsl/gsl_math.h>
+#include <gsl/gsl_roots.h>
 
 extern "C"
 {
@@ -144,33 +146,6 @@ double pmixture_C(double xval, double phi, double gamma){
     return result;
 }
 
-/* No gain compared to np.vectorize() */
-//int pmixture_C_vec(double* xval, double phi, double gamma, int n_xval, double *result){
-//    double error;
-//    double two_pi = boost::math::constants::two_pi<double>();
-//    double constant = sqrt(gamma/two_pi);
-//    
-//    gsl_integration_workspace * w
-//      = gsl_integration_workspace_alloc (1e4);
-//    
-//    gsl_function F;
-//    F.function = &p_integrand;
-//    
-//    for(int iter=0; iter < n_xval; iter++) {
-//        struct my_f_params params = { xval[iter], phi, gamma };
-//        F.params = &params;
-//        
-//        double tmp_result = 0.0;
-//        gsl_integration_qagiu (&F, 0, 1e-12, 1e-10, 1e4,
-//                              w, &tmp_result, &error);
-//        result[iter] = 1-tmp_result*constant;
-//        
-//    }
-//    
-//    gsl_integration_workspace_free (w);
-//    
-//    return 1;
-//}
 
 /* Density integrand */
 double d_integrand(double x, void * p) {
@@ -301,58 +276,222 @@ double qRW_newton_C(double p, double phi, double gamma, int n_x){
     return current_x;
 }
 
-//------------------------------------------------------------------------------------------
-/* Calculate F_X(x) */
+/* ----------------------------------------------------------------------------------------- 
+ * Calculate F_X(x), with the addition of the nugget term epsilon ~ N(0, \tau^2)
+ * -----------------------------------------------------------------------------------------
+ */
 
-// double first_integrand (double epislon, void * params) { // inte_x^\inf \phi(\epsilon) d\epsilon
-//     // double params[] = { xval, phi, gamma, tao };
-//     double tao = (*(double[] *) params)[3];
-//     double tao = *(double *) params;
-//     double integrand = gsl_ran_gaussian_pdf(epsilon, tao);
-//     return integrand
-// }
-
-double nugget_F_second_integrand (double epsilon, void * params_ptr) { // phi(epsilon) * pmixture_C(xval-epsilon, phi, gamma)
-    double xval  = (*(double(*)[4]) params_ptr)[0];
-    double phi   = (*(double(*)[4]) params_ptr)[1];
-    double gamma = (*(double(*)[4]) params_ptr)[2];
-    double tao   = (*(double(*)[4]) params_ptr)[3];
-    double integrand = gsl_ran_gaussian_pdf(epsilon, tao)*(1.0 - pmixture_C(xval-epsilon, phi, gamma));
+double F_X_star_integrand (double r, void * params_ptr) {
+    double xval  = (*(double(*)[3]) params_ptr)[0];
+    double phi   = (*(double(*)[3]) params_ptr)[1];
+    double gamma = (*(double(*)[3]) params_ptr)[2];
+    double integrand = sqrt(gamma/(2*M_PI))*pow(r,phi-1.5)*exp(-gamma/(2*r))/(xval+pow(r,phi));
     return integrand;
 }
 
-
-double nugget_F (double xval, double phi, double gamma, double tao){
+double F_X_star (double xval, double phi, double gamma) {
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (10000);
 
-    /* Calculate part 2 integral */
+    double result, error;
+    double params[3] = { xval, phi, gamma };
 
-    double result_part_2, error_part_2;
-    double params[4] = { xval, phi, gamma, tao }; // params is an array of 4 doubles
+    gsl_function F;
+    F.function = &F_X_star_integrand;
+    F.params = &params;
+
+    gsl_integration_qagiu(&F, 0, 1e-12, 1e-12, 10000,
+                            w, &result, &error);
+    gsl_integration_workspace_free (w);
+    return 1-result;
+}
+
+double F_X_first_integrand (double epsilon, void * params_ptr) {
+    double tau = (*(double(*)[4]) params_ptr)[3];
+    double integrand = gsl_ran_gaussian_pdf(epsilon, tau);
+    return integrand;
+}
+
+double F_X_second_integrand (double epsilon, void * params_ptr) { // phi(epsilon) * pmixture_C(xval-epsilon, phi, gamma)
+    double xval  = (*(double(*)[4]) params_ptr)[0];
+    double phi   = (*(double(*)[4]) params_ptr)[1];
+    double gamma = (*(double(*)[4]) params_ptr)[2];
+    double tau   = (*(double(*)[4]) params_ptr)[3];
+    double integrand = gsl_ran_gaussian_pdf(epsilon, tau)*(1.0 - pmixture_C(xval-epsilon, phi, gamma));
+    // double integrand = gsl_ran_gaussian_pdf(epsilon, tau)*(1.0 - F_X_star(xval-epsilon, phi, gamma));
+    return integrand;
+}
+
+double F_X_part_1 (double xval, double phi, double gamma, double tau) {
+    double result_part_1;
+    result_part_1 = gsl_cdf_gaussian_Q (xval, tau);
+    return result_part_1;
+}
+
+double F_X_part_2 (double xval, double phi, double gamma, double tau) {
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (10000);
+
+    double result, error;
+    double params[4] = { xval, phi, gamma, tau }; // params is an array of 4 doubles
     // double (*params_ptr)[4] = &params; // `params_ptr` is a pointer that point to `an array of 4 doubles`,
                                         // the base type of `params_ptr` is `an array of 4 doubles`
 
-    gsl_function nugget_F_part_2;
-    nugget_F_part_2.function = &nugget_F_second_integrand;
-    nugget_F_part_2.params = &params;
+    gsl_function F_X_part_2;
+    F_X_part_2.function = &F_X_second_integrand;
+    F_X_part_2.params = &params;
 
     // int gsl_integration_qagil(gsl_function *f, double b, double epsabs, double epsrel, size_t limit, 
     //                              gsl_integration_workspace *workspace, double *result, double *abserr)
 
-    gsl_integration_qagil(&nugget_F_part_2, xval, 1e-14, 1e-14, 10000,
-                            w, &result_part_2, &error_part_2);
+    gsl_integration_qagil(&F_X_part_2, xval, 1e-12, 1e-12, 10000,
+                            w, &result, &error);
 
     gsl_integration_workspace_free (w);
+    return result;
+}
 
-    /* Calculate part 1 integral */
-
-    double result_part_1;
-    result_part_1 = gsl_cdf_gaussian_Q (xval, tao);
-
-    double F;
-    F = 1 - (result_part_1 + result_part_2);
-
+double F_X (double xval, double phi, double gamma, double tau) {
+    double result_part_1 = F_X_part_1(xval, phi, gamma, tau);
+    double result_part_2 = F_X_part_2(xval, phi, gamma, tau);
+    double F = 1 - (result_part_1 + result_part_2);
     return F;
+}
+
+/* ---------------------------------------------------- */
+/* find the quantile (x value) corresponding to F_X = p */
+/* ---------------------------------------------------- */
+
+/* integrand of \int_0^\infty r^{\phi-2.5} \exp{-\dfrac{\gamma}{2r}}dr */
+double f_X_second_integrand (double r, void * params_ptr) { // params is an array of 4 doubles {p, phi, gamma, tau}
+    // double p     = (*(double(*)[4]) params_ptr)[0];
+    double phi   = (*(double(*)[4]) params_ptr)[1];
+    double gamma = (*(double(*)[4]) params_ptr)[2];
+    // double tau   = (*(double(*)[4]) params_ptr)[3];
+    return pow(r,phi-2.5)*exp(-gamma/(2*r));
+}
+
+/* integrand of \int_{-\infty}^x \varphi(\epsilon) f_{X^*}(x-\epsilon)d\epsilon */
+double f_X_thrid_integrand (double epsilon, void * params_ptr) { // params is an array of 5 doubles {p, phi, gamma, tau, x}
+    // double p     = (*(double(*)[4]) params_ptr)[0];
+    double phi   = (*(double(*)[5]) params_ptr)[1];
+    double gamma = (*(double(*)[5]) params_ptr)[2];
+    double tau   = (*(double(*)[5]) params_ptr)[3];
+    double x     = (*(double(*)[5]) params_ptr)[4];
+    return gsl_ran_gaussian_pdf(epsilon, tau)*dmixture_C(x-epsilon, phi, gamma);
+}
+
+/* the function to find the root of */
+double function_to_solve (double x, void * params_ptr) {
+    double p     = (*(double(*)[4]) params_ptr)[0];
+    double phi   = (*(double(*)[4]) params_ptr)[1];
+    double gamma = (*(double(*)[4]) params_ptr)[2];
+    double tau   = (*(double(*)[4]) params_ptr)[3];
+
+    return F_X(x, phi, gamma, tau) - p;
+}
+
+double function_to_solve_df (double x, void * params_ptr) {
+    double p     = (*(double(*)[4]) params_ptr)[0];
+    double phi   = (*(double(*)[4]) params_ptr)[1];
+    double gamma = (*(double(*)[4]) params_ptr)[2];
+    double tau   = (*(double(*)[4]) params_ptr)[3];
+
+    /* Part 1: gaussian density of x */
+    double part_1;
+    part_1 = gsl_ran_gaussian_pdf(x,tau);
+
+    /* Part 2: -\sqrt{\dfrac{\gamma}{2\pi}} \int_0^\infty r^{\phi-2.5} \exp{-\dfrac{\gamma}{2r}}dr */
+    double part_2;
+    double params_part_2[4] = { p, phi, gamma, tau };
+
+    gsl_integration_workspace * w2 = gsl_integration_workspace_alloc (10000);
+    double part_2_integral_result, part_2_integral_error;
+    gsl_function f_X_part_2;
+    f_X_part_2.function = &f_X_second_integrand;
+    f_X_part_2.params = &params_part_2;
+    gsl_integration_qagiu(&f_X_part_2, 0, 1e-12, 1e-12, 10000,
+                            w2, &part_2_integral_result, &part_2_integral_error);
+    gsl_integration_workspace_free (w2);
+
+    part_2 = -sqrt(gamma/(2*M_PI))*gsl_ran_gaussian_pdf(x,tau)*part_2_integral_result;
+
+    /* Part 3: \int_{-\infty}^x \varphi(\epsilon) f_{X^*}(x-\epsilon)d\epsilon */
+    double part_3;
+    double params_part_3[5] = { p, phi, gamma, tau, x};
+
+    gsl_integration_workspace * w3 = gsl_integration_workspace_alloc (10000);
+    double part_3_integral_result, part_3_integral_error;
+    gsl_function f_X_part_3;
+    f_X_part_3.function = &f_X_thrid_integrand;
+    f_X_part_3.params = &params_part_3;
+    gsl_integration_qagil(&f_X_part_3, x, 1e-12, 1e-12, 10000,
+                            w3, &part_3_integral_result, &part_3_integral_error);
+    gsl_integration_workspace_free (w3);
+
+    part_3 = part_3_integral_result;
+
+    return part_1 + part_2 + part_3;
+}
+
+void function_to_solve_fdf (double x, void * params_ptr,
+                              double * f, double * df){
+    // double p     = (*(double(*)[4]) params_ptr)[0];
+    // double phi   = (*(double(*)[4]) params_ptr)[1];
+    // double gamma = (*(double(*)[4]) params_ptr)[2];
+    // double tau   = (*(double(*)[4]) params_ptr)[3];
+
+    *f = function_to_solve(x,params_ptr);
+    *df = function_to_solve_df(x,params_ptr);
+}
+
+double quantile_F_X (double p, double phi, double gamma, double tau) {
+    int status;
+    int iter = 0, max_iter = 100;
+    const gsl_root_fdfsolver_type *T; // Root Finding Algorithms using Derivatives
+    gsl_root_fdfsolver *s; // A workspace for finding roots using methods that require derivatives
+    gsl_function_fdf FDF; // a general function with parameters and its first derivative
+
+    double x0, x = qRW_newton_C(p, phi, gamma, 100);
+    double params[4] = { p, phi, gamma, tau }; // params is an array of 4 doubles
+    FDF.f = &function_to_solve;
+    FDF.df = &function_to_solve_df;
+    FDF.fdf = &function_to_solve_fdf;
+    FDF.params = &params;
+
+    /* 
+        int gsl_root_fdfsolver_set(gsl_root_fdfsolver *s, gsl_function_fdf *fdf, double root)
+        This function initializes, or reinitializes, an existing solver s 
+        to use the function and derivative fdf and the initial guess root.
+    */
+    T = gsl_root_fdfsolver_newton;
+    s = gsl_root_fdfsolver_alloc(T);
+    gsl_root_fdfsolver_set(s, &FDF, x);
+
+    printf ("using %s method\n",
+            gsl_root_fdfsolver_name (s));
+
+
+    /*
+        int gsl_root_test_delta(doublex1, double x0, double epsabs, double epsrel)
+        This function tests for the convergence of the sequence `x0`, `x1` with absolute error `epsabs`
+        and relative error `epsrel`. The test returns `GSL_SUCCESS` if the condition:
+            |x1 - x0| < epsabs + epsrel|x1|
+        is achieved, and returns `GSL_CONTINUE` otherwise.
+    */
+    do {
+        iter++;
+        status = gsl_root_fdfsolver_iterate(s);
+        x0 = x;
+        x = gsl_root_fdfsolver_root(s);
+        status = gsl_root_test_delta(x,x0,0,1e-4);
+
+        if (status == GSL_SUCCESS)
+            printf ("Converged:\n");
+        printf ("%5d %10.7f %10.7f\n",
+                iter, x, x-x0);
+    } while (status == GSL_CONTINUE && iter < max_iter);
+
+    gsl_root_fdfsolver_free (s);
+    return status;
 }
 
 
