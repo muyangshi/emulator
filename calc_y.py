@@ -1,13 +1,16 @@
+# %%
+# imports
 from model_sim import *
 import numpy as np
 import time
 import os
 
+# %%
 # Training Part
 
-p_train = np.linspace(0.8,0.9999,500) # shape (n1,)
-phi_train = np.linspace(0,1,500) # shape (n2, )
-gamma_train = np.linspace(0.5,2,500) # shape (n3, )
+p_train = np.linspace(0.8,0.9999,50) # shape (n1,)
+phi_train = np.linspace(0,1,50) # shape (n2, )
+gamma_train = np.linspace(0.5,2,10) # shape (n3, )
 p_train_g, phi_train_g, gamma_train_g = np.meshgrid(p_train, phi_train, gamma_train, indexing='ij')
 X_train = np.vstack([p_train_g, phi_train_g, gamma_train_g]).reshape(3,-1).T # shape(n1*n2*n3,3)
 X_train_p, X_train_phi, X_train_gamma = np.split(X_train,3,-1) # each shape (n_i, 1)

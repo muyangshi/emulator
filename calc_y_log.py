@@ -1,15 +1,37 @@
-
-# %%
 from model_sim import *
 import numpy as np
 import time
 import os
 from multiprocessing import Pool
-# %%
+
 # Training Part
 
 def quantile_wrapper_C(p,phi,gamma):
     return qRW_Newton(p,phi,gamma,100)
+
+
+p = np.geomspace(1,10,num=20)
+y = [0] * 20
+plt.plot(p,y,'bo')
+plt.show()
+
+import matplotlib.pyplot as plt
+n = 10
+p = (0.9999 + 0.8) + np.geomspace(-0.9999,-0.8,num=n)
+y = [0] * n
+
+for i in range(1,n):
+    print((p[i]-(0.9999+0.8))/(p[i-1]-(0.9999+0.8)))
+
+plt.plot(p,y,'bo')
+plt.show()
+
+p_train = (0.9999 + 0.8) + np.geomspace(-0.9999,-0.8, 500)
+# phi_train = 
+
+
+
+
 
 p_train = np.linspace(0.8,0.9999,50) # shape (n1,)
 phi_train = np.linspace(0,1,50) # shape (n2, )
@@ -31,24 +53,3 @@ os.makedirs(path, exist_ok = True)
 np.save(path+'y_train_matrix',y_train_matrix)
 np.save(path+'y_train_matrix_ravel',y_train_matrix_ravel)
 # np.save(path+'y_train_vector',y_train_vector) # y_train_vector.ravel() = y_train_matrix_ravel, using indexing='ij'
-
-
-# Testing Part
-
-# p_test = np.linspace(0.8,0.9999,80)
-# phi_test = np.linspace(0,1,80) # shape(m1,)
-# gamma_test = np.linspace(0.5,2,80) # shape(m2,)
-# p_test_g, phi_test_g, gamma_test_g = np.meshgrid(p_test, phi_test, gamma_test, indexing = 'ij')
-# X_test = np.vstack([p_test_g, phi_test_g, gamma_test_g]).reshape(3,-1).T # shape(n1*n2*n3, 3)
-# # Do this, becuase the ordering the points would be consistent
-# # with the test_pts, which will be input to the RegularGridInterpolator
-# X_test_p, X_test_phi ,X_test_gamma = np.split(X_test,3,-1) # each shape (n_i, 1)
-# y_test_matrix = qRW_Newton(p_test_g,phi_test_g, gamma_test_g, 100)
-# y_test_matrix_ravel = y_test_matrix.ravel()
-# # y_test_vector = qRW_Newton(X_test_p,X_test_phi,X_test_gamma,100)
-
-# path = './data/80x80x80/'
-# os.makedirs(path, exist_ok=True)
-# np.save(path+'y_test_matrix',y_test_matrix)
-# np.save(path+'y_test_matrix_ravel',y_test_matrix_ravel)
-# # np.save(path+'y_test_vector',y_test_vector)
