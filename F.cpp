@@ -391,9 +391,11 @@ double F_X_part_2_QAG (double xval, double phi, double gamma, double tau) {
     // int gsl_integration_qagil(gsl_function *f, double b, double epsabs, double epsrel, size_t limit, 
     //                              gsl_integration_workspace *workspace, double *result, double *abserr)
 
-    double LB = find_lower_bound(tau); // -38 * tau
+    // double LB = find_lower_bound(tau); // -38 * tau
+    // std::cout << "LB: " << LB << "\n";
+    double LB = -38 * tau; // Gaussian Density = 0 outside of 38 standard deviations
 
-    gsl_integration_qag(&F_X_part_2, LB, xval, 1e-12, 1e-12, 10000,
+    gsl_integration_qag(&F_X_part_2, LB, xval, 1e-16, 1e-16, 10000,
                         6, w, &result, &error);
 
     gsl_integration_workspace_free (w);
@@ -556,7 +558,7 @@ double quantile_F_X (double p, double phi, double gamma, double tau) {
 
     double x0, x = qRW_newton_C(p, phi, gamma, 100);
 
-    if (F_X(x, phi, gamma, tau) == 1) {
+    if (F_X(x, phi, gamma, tau) == 1 || abs(F_X(x, phi, gamma, tau) - pmixture_C(x, phi, gamma)) < 1e-10) {
         std::cout << "F_X failed at p = " << p << "\n";
         return x;
     }
@@ -629,7 +631,7 @@ int main(void){
     double xval = 1;
     double phi = 1;
     double gamma = 2;
-    double tau = 200;
+    double tau = 0.01;
 
     double F_X_value = 0;
 
@@ -652,7 +654,14 @@ int main(void){
     //     xval++;
     // }
 
-    while (F_X_value != 1 && xval < 2e14) {
+    // std::cout << "Gaussian Density 6144: " << gsl_ran_gaussian_pdf(-6144,tau) << "\n";
+    // std::cout << "Gaussian Density 37: " << gsl_ran_gaussian_pdf(37*tau, tau) << "\n";
+    // std::cout << "Gaussian Density 38: " << gsl_ran_gaussian_pdf(38*tau, tau) << "\n";
+    // std::cout << "Gaussian Density 39: " << gsl_ran_gaussian_pdf(38.2*tau, tau) << "\n";
+
+
+
+    while (F_X_value != 1 && xval < 67108864) {
         // F_X_value = F_X(xval, phi, gamma, tau);
         double F_X_star_value = pmixture_C(xval, phi, gamma);
         double F_X_value = F_X_cheat (xval, phi, gamma, tau);
