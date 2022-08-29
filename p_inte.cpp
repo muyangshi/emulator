@@ -12,6 +12,7 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_math.h>
 #include <limits>
+#include <algorithm>
 
 extern "C"
 {
@@ -530,7 +531,26 @@ double function_to_solve_df (double x, void * params_ptr) {
     f_X.function = &f_X_integrand;
     f_X.params = &params;
     double LB = -38 * tau;
-    gsl_integration_qag(&f_X, LB, x, 1e-12, 1e-12, 10000,
+    double UB = x;
+    if (UB > 38*tau) {
+        UB = 38*tau;
+    }
+    gsl_integration_qag(&f_X, LB, UB, 1e-12, 1e-12, 10000,
+                        6, w, &result, &error);
+    gsl_integration_workspace_free (w);
+    return result;
+}
+
+double f_X (double p, double phi, double gamma, double tau, double x){
+    double params[5] = { p, phi, gamma, tau, x};
+    gsl_integration_workspace * w = gsl_integration_workspace_alloc (10000);
+    double result, error;
+    gsl_function F;
+    F.function = &f_X_integrand;
+    F.params = &params;
+    double LB = -38*tau;
+    double UB = std::min(x, 38*tau);
+    gsl_integration_qag(&F, LB, UB, 1e-12, 1e-12, 10000,
                         6, w, &result, &error);
     gsl_integration_workspace_free (w);
     return result;
@@ -578,8 +598,8 @@ double quantile_F_X (double p, double phi, double gamma, double tau) {
     s = gsl_root_fdfsolver_alloc(T);
     gsl_root_fdfsolver_set(s, &FDF, x);
 
-    printf ("using %s method: \n",
-            gsl_root_fdfsolver_name (s));
+    // printf ("using %s method: \n",
+    //         gsl_root_fdfsolver_name (s));
 
 
     /*
@@ -596,10 +616,10 @@ double quantile_F_X (double p, double phi, double gamma, double tau) {
         x = gsl_root_fdfsolver_root(s);
         status = gsl_root_test_delta(x,x0,0,1e-4);
 
-        if (status == GSL_SUCCESS)
-            printf ("Converged:\n");
-        printf ("%5d %10.7f %10.7f\n",
-                iter, x, x-x0);
+        // if (status == GSL_SUCCESS)
+        //     printf ("Converged:\n");
+        // printf ("%5d %10.7f %10.7f\n",
+        //         iter, x, x-x0);
     } while (status == GSL_CONTINUE && iter < max_iter);
 
     gsl_root_fdfsolver_free (s);

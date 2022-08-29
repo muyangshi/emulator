@@ -530,7 +530,11 @@ double function_to_solve_df (double x, void * params_ptr) {
     f_X.function = &f_X_integrand;
     f_X.params = &params;
     double LB = -38 * tau;
-    gsl_integration_qag(&f_X, LB, x, 1e-12, 1e-12, 10000,
+    double UB = x;
+    if (UB > 38*tau) {
+        UB = 38*tau;
+    }
+    gsl_integration_qag(&f_X, LB, UB, 1e-12, 1e-12, 10000,
                         6, w, &result, &error);
     gsl_integration_workspace_free (w);
     return result;
@@ -557,6 +561,11 @@ double quantile_F_X (double p, double phi, double gamma, double tau) {
     gsl_function_fdf FDF; // a general function with parameters and its first derivative
 
     double x0, x = qRW_newton_C(p, phi, gamma, 100);
+
+    // if (F_X(x, phi, gamma, tau) == 1) {
+    //     std::cout << "F_X failed at p = " << p << "\n";
+    //     return x;
+    // }
 
     if (F_X(x, phi, gamma, tau) == 1 || abs(F_X(x, phi, gamma, tau) - pmixture_C(x, phi, gamma)) < 1e-10) {
         std::cout << "F_X failed at p = " << p << "\n";
@@ -631,7 +640,7 @@ int main(void){
     double xval = 1;
     double phi = 1;
     double gamma = 2;
-    double tau = 0.01;
+    double tau = 1;
 
     double F_X_value = 0;
 
@@ -661,11 +670,11 @@ int main(void){
 
 
 
-    while (F_X_value != 1 && xval < 67108864) {
+    while (F_X_value != 1 && xval <= 67108864) {
         // F_X_value = F_X(xval, phi, gamma, tau);
         double F_X_star_value = pmixture_C(xval, phi, gamma);
         double F_X_value = F_X_cheat (xval, phi, gamma, tau);
-        std::cout << std::setprecision(10) << std::fixed;
+        std::cout << std::setprecision(14) << std::fixed;
         std::cout << "xval: " << xval << "\n";
         std::cout << "F_X  is: " << F_X_value << "\n";
         std::cout << "F_X* is: " << F_X_star_value << "\n";
