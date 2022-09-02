@@ -1,13 +1,12 @@
 #%%
-# Imports
-from cmath import exp
+# imports
 from model_sim import *
 import numpy as np
 import scipy
-from scipy.spatial import distance
 import matplotlib.pyplot as plt
-import math
 from scipy.stats import genpareto
+from sklearn.gaussian_process.kernels import Matern
+from sklearn.metrics import pairwise_distances
 
 #%%
 # Utilities
@@ -48,14 +47,14 @@ def log_censored_likelihood(y, u, X_star, p, phi, gamma, tau, mu, sigma, ksi):
             np.log(f_Y(y, mu, sigma, ksi)) - np.log(f_X(p, phi, gamma, tau, quantile_F_X(F_Y(y, mu, sigma, ksi),phi, gamma, tau)))
 
 #%%
-# Some Math Functions
+# Some More Utilities
 def norm_to_Pareto(z):
     if(isinstance(z, (int, np.int64, float))): z=np.array([z])
     tmp = scipy.stats.norm.cdf(z)
     if np.any(tmp==1): tmp[tmp==1]=1-1e-9
     return 1/(1-tmp)-1
 
-def rlevy(n, m = 0, s = 1):
+def rlevy(n, m = 0, s = 1): # m is delta, s is gamma in Stable(alpha, 1, gamma, delta)
   if np.any(s < 0):
     sys.exit("s must be positive")
   return s/scipy.stats.norm.ppf(1-uniform.rvs(0,1,n)/2)**2 + m
@@ -176,7 +175,7 @@ def dlevy(r, m=0, s=1, log=False):
 
 # %%
 # Simulation Parameters
-N = 30 # sample size
+N = 30 # number of time replicates
 phi = 0.5 # the phi in R^phi*W
 gamma = 1 # is this the gamma that goes in rlevy?
 ksi = 0 # Generalized Parato Distribution parameter for Y
@@ -184,72 +183,97 @@ mu = 0 # Generalized Parato Distribution parameter for Y
 sigma = 1 # Generalized Parato Distribution parameter for Y
 tau = np.sqrt(10) # standard deviation of the Gaussian nugget terms
 covariance_matrix = 1 # the Cov for multivariate gaussian Z(s)
-p = 0.9 # censor likelihood
+p = 0.9 # censoring threshold probability
+u = genpareto.ppf(p,c=0, loc=mu, scale=sigma) # censoring threshold value
+rho = 0.2
+length_scale = 1/rho # scikit/learn parameterization (length_scale)
+nu = 0.5 # exponential kernel
 
 
-#%%
-# Generate the Z(s) Gaussian Process
+# %% 
+# Generate Z(s) Gaussian Process, 25 locations, N time replicates
+idx = np.linspace(1,5,num=5) # x locations [1,2,3,4,5]
+idy = np.linspace(1,5,num=5) # y locations [1,2,3,4,5]
 id = np.arange(N)
-Z = scipy.stats.multivariate_normal.rvs(mean=0,cov=covariance_matrix,size=N,random_state=2)
-plt.plot(id,Z,'b.-')
+# 25 locations in a 2D array
+s_xy = np.vstack(np.meshgrid(idx,idy,indexing='ij')).reshape(2,-1).T
+# 25 by 25 euclidean distance matrix, entry (i,j) is h(point_i,point_j)
+distance_matrix = pairwise_distances(s_xy, metric="euclidean")
+# covariance kernel, with nu=0.5, it's exp(-rho*x)
+K = Matern(nu=nu,length_scale=length_scale)(0, distance_matrix.ravel()[:,np.newaxis]).reshape(distance_matrix.shape)
+# Generate N time replicates, Z.shape = (30,25) --> 30 time replicates for 25 locations
+# each row is a time replicate of 25 sites
+# each column is one site, across N time replicates
+Z = scipy.stats.multivariate_normal.rvs(mean=np.zeros(shape=(25,)),cov=K,size=N,random_state=2)
+# Plot the first location
+# plt.plot(id,Z[:,0],'.-')
+# plt.plot(id,Z[:,1],'r.-')
+# plt.plot(id,Z[:,6],'b.-')
+# plt.plot(id,Z[:,24],'g.-')
+# d = pairwise_distances([[1,0],[3,0],[5,0]], metric="euclidean")
+# K = Matern(nu=0.5, length_scale=1/0.2)(0, d.ravel()[:, np.newaxis]).reshape(d.shape)
 
-
-#%%
-# Transform Z(s) to g(Z(s)) = W(s)
-W = norm_to_Pareto(Z)
-# plt.ylim(top=10)
-plt.plot(id,W,'r.-')
-# plt.show()
+# %%
+# Transform Z(s) to W(s) = g(Z(s))
+W = norm_to_Pareto(Z) # shape = (30,25) --> 30 time replicates for 25 locations
+# plt.plot(id,W[:,0],'.-')
+# plt.plot(id,W[:,1],'r.-')
+# plt.plot(id,W[:,6],'b.-')
+# plt.plot(id,W[:,24],'g.-')
 
 # %%
 # Generate R(s) Levy
-R = rlevy(n=N)
-plt.plot(id,R,'g.-')
-
-# %%
+# Generate one R for all the sites at each time replicate, for 30 replicates
+# shape is thus a (30,) vector
+R = rlevy(n=30,m=0,s=1) # s is gamma, m is delta
 # Raise to the power of phi
-R_phi = pow(base=R,exp=0.5)
-plt.plot(id,R_phi,'.-')
+R_phi = pow(base=R,exp=phi)
+# plt.plot(id,R_phi,'.-')
+plt.plot(id,R_phi, '.-') # heavy tailed distribution: most observations are small and a few very large
 
 # %%
-# X_star
-X_star = R_phi*W
-plt.plot(id,X_star,'.-')
+# Take to product and yield X_star
+# Notice now R(s) dominates
+X_star = R_phi * W.T # multiply (30,) with (30,25)*T; R_phi * W.T is the same as W.T * R_phi
+X_star = X_star.T
+plt.plot(id,X_star[:,0],'.-')
+# plt.plot(id,X_star[1],".-")
 
 # %%
 # X (with nugget)
-epsilon = scipy.stats.norm.rvs(loc=0, scale=tau, size=N, random_state=3)
-plt.plot(id,epsilon,'.-') # blue
+# epsilon.shape = (30,25), 30 replicates for 25 locations
+epsilon = scipy.stats.multivariate_normal.rvs(mean=np.zeros(shape=(25,)),cov=10,size=N,random_state=53)
+plt.plot(id,epsilon[:,0],'.-') # blue
 X = X_star + epsilon
-plt.plot(id,X,'.-') # orange
+plt.plot(id,X[:,0],'.-') # orange
 
 # %%
 # Transform to Y
 F_X_vec = np.vectorize(F_X)
-F_Xs = F_X_vec(X,0.5,1,10) # xval, phi, gamma, tau
-Y = genpareto.ppf(F_Xs,c=0)
-plt.plot(id,Y,'.-')
-# u = genpareto.ppf(0.8,c=0)
+F_Xs = F_X_vec(X,phi,gamma,tau) # xval, phi, gamma, tau # shape (30,25) # takes 20 secs
+
+leq_mask = F_Xs <= 0.9
+greater_mask = np.logical_not(leq_mask)
+
+Y = F_Xs.copy()
+Y[leq_mask] = genpareto.ppf(F_Xs[leq_mask], c=ksi)
+Y[greater_mask] = genpareto.ppf((F_Xs[greater_mask]-p)/(1-p), c=ksi)
+
+plt.plot(id,Y[:,0],'.-')
 
 # %%
-# Calculate log-likelihood across a range of phi's
-u = genpareto.ppf(0.8,c=0)
+# log likelihood
+# each time use observation from one site across 30 time replicates
+# sum up the loglikelihodds (log of a product is the sum of logs)
 log_censored_likelihood_vec = np.vectorize(log_censored_likelihood)
-phis = np.linspace(start = 0.05, stop = 0.95, num=10)
-loglik = []
-for phi in phis:
-    logliks = log_censored_likelihood_vec(Y, u, X_star, 0.8, phi, gamma, tau, mu, sigma, ksi)
-    loglik.append(sum(logliks))
-plt.plot(phis,loglik,'.-')
-
-# %%
-# Calculate log-likelihood across a range of phi's
-u = genpareto.ppf(0.9,c=0)
-log_censored_likelihood_vec = np.vectorize(log_censored_likelihood)
-phis = np.linspace(start = 0.05, stop = 0.95, num=10)
-loglik = []
-for phi in phis:
-    logliks = log_censored_likelihood_vec(Y, u, X_star, 0.9, phi, gamma, tau, mu, sigma, ksi)
-    loglik.append(sum(logliks))
-plt.plot(phis,loglik,'.-')
-# %%
+phis = np.linspace(start = 0.2, stop = 0.7, num = 11)
+loglik_total = [0]*len(phis)
+for site in np.arange(len(idx)*len(idy)): # loop through all the sites
+    for phi_index in range(len(phis)): # evaluate loglik across phis
+        phi = phis[phi_index]
+        loglik_site_30time = log_censored_likelihood_vec(Y[:,site], u, X_star[:,site], p, phi, gamma, tau, mu, sigma, ksi)
+        loglik_site = sum(loglik_site_30time)
+        loglik_total[phi_index] += loglik_site
+fig, ax = plt.subplots()
+ax.plot(phis, loglik_total, '.-')
+fig.savefig('logliklihood.pdf')
