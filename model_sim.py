@@ -93,20 +93,20 @@ lib.qRW_newton_C.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, 
 # lib.F_X_part_2.restype = ctypes.c_double
 # lib.F_X_part_2.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double)
 
-# lib.F_X_star.restype = ctypes.c_double
-# lib.F_X_star.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double)
+lib.F_X_star.restype = ctypes.c_double
+lib.F_X_star.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double) # x, phi, gamma
 
 lib.F_X.restype = ctypes.c_double
-lib.F_X.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double)
+lib.F_X.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double) # x, phi, gamma, tau
 
 lib.F_X_cheat.restype = ctypes.c_double
-lib.F_X_cheat.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double)
+lib.F_X_cheat.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double) # x, phi, gamma, tau
 
 lib.quantile_F_X.restype = ctypes.c_double
-lib.quantile_F_X.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double)
+lib.quantile_F_X.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double) # p, phi, gamma, tau
 
 lib.f_X.restype = ctypes.c_double
-lib.f_X.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double)
+lib.f_X.argtypes = (ctypes.c_double, ctypes.c_double, ctypes.c_double, ctypes.c_double) # phi, gamma, tau, x
 
 # lib.my_gsl_cdf_gaussian_Q.restype = ctypes.c_double
 # lib.my_gsl_cdf_gaussian_Q.argtypes = (ctypes.c_double, ctypes.c_double)
