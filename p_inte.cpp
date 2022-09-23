@@ -13,6 +13,7 @@
 #include <gsl/gsl_math.h>
 #include <limits>
 #include <algorithm>
+#include <gsl/gsl_errno.h>
 
 extern "C"
 {
@@ -310,7 +311,7 @@ double F_X_star (double xval, double phi, double gamma) {
     F.function = &F_X_star_integrand;
     F.params = &params;
 
-    gsl_integration_qagiu(&F, 0, 1e-12, 1e-12, 10000,
+    gsl_integration_qagiu(&F, 0, 1e-8, 1e-8, 10000,
                             w, &result, &error);
     gsl_integration_workspace_free (w);
     return 1-result;
@@ -327,8 +328,8 @@ double F_X_second_integrand (double epsilon, void * params_ptr) { // phi(epsilon
     double phi   = (*(double(*)[4]) params_ptr)[1];
     double gamma = (*(double(*)[4]) params_ptr)[2];
     double tau   = (*(double(*)[4]) params_ptr)[3];
-    double integrand = gsl_ran_gaussian_pdf(epsilon, tau)*(1.0 - pmixture_C(xval-epsilon, phi, gamma));
-    // double integrand = gsl_ran_gaussian_pdf(epsilon, tau)*(1.0 - F_X_star(xval-epsilon, phi, gamma));
+    // double integrand = gsl_ran_gaussian_pdf(epsilon, tau)*(1.0 - pmixture_C(xval-epsilon, phi, gamma));
+    double integrand = gsl_ran_gaussian_pdf(epsilon, tau)*(1.0 - F_X_star(xval-epsilon, phi, gamma));
     return integrand;
 }
 
@@ -353,7 +354,7 @@ double F_X_part_2 (double xval, double phi, double gamma, double tau) {
     // int gsl_integration_qagil(gsl_function *f, double b, double epsabs, double epsrel, size_t limit, 
     //                              gsl_integration_workspace *workspace, double *result, double *abserr)
 
-    gsl_integration_qagil(&F_X_part_2, xval, 1e-12, 1e-12, 10000,
+    gsl_integration_qagil(&F_X_part_2, xval, 1e-8, 1e-8, 10000,
                             w, &result, &error);
 
     gsl_integration_workspace_free (w);
@@ -395,8 +396,9 @@ double F_X_part_2_QAG (double xval, double phi, double gamma, double tau) {
     // double LB = find_lower_bound(tau); // -38 * tau
     // std::cout << "LB: " << LB << "\n";
     double LB = -38 * tau; // Gaussian Density = 0 outside of 38 standard deviations
+    double UB = std::min(xval, 38*tau);
 
-    gsl_integration_qag(&F_X_part_2, LB, xval, 1e-16, 1e-16, 10000,
+    gsl_integration_qag(&F_X_part_2, LB, UB, 1e-8, 1e-8, 10000,
                         6, w, &result, &error);
 
     gsl_integration_workspace_free (w);
@@ -418,7 +420,7 @@ double F_X_part_2_CQUAD (double xval, double phi, double gamma, double tau) {
 
     double LB = find_lower_bound(tau);
 
-    gsl_integration_cquad(&F_X_part_2, LB, xval, 1e-12, 1e-12,
+    gsl_integration_cquad(&F_X_part_2, LB, xval, 1e-8, 1e-8,
                             w, &result, &error, &neval);
     gsl_integration_cquad_workspace_free (w);
     return result;
@@ -443,7 +445,7 @@ double F_X_part_2_QAGS_inner (double t, double phi, double gamma, double tau) {
     F.function = &F_X_part_2_QAGS_inner_integrand;
     F.params = &params;
 
-    gsl_integration_qagiu(&F, 0, 1e-12, 1e-12, 10000,
+    gsl_integration_qagiu(&F, 0, 1e-8, 1e-8, 10000,
                             w, &result, &error);
     gsl_integration_workspace_free (w);
     return result;
@@ -468,7 +470,7 @@ double F_X_part_2_QAGS (double xval, double phi, double gamma, double tau) {
     F.function = &F_X_part_2_QAGS_integrand;
     F.params = &params;
 
-    gsl_integration_qags(&F, 0, 1, 1e-12, 1e-12, 10000,
+    gsl_integration_qags(&F, 0, 1, 1e-8, 1e-8, 10000,
                             w, &result, &error);
     gsl_integration_workspace_free (w);
     return sqrt(gamma/(2*M_PI))*result;
@@ -476,6 +478,7 @@ double F_X_part_2_QAGS (double xval, double phi, double gamma, double tau) {
 
 double F_X (double xval, double phi, double gamma, double tau) {
     double result_part_1 = F_X_part_1(xval, phi, gamma, tau);
+    // printf("result_part_1: %10.f\n",result_part_1);
     // double result_part_2 = F_X_part_2(xval, phi, gamma, tau);
     double result_part_2 = F_X_part_2_QAG(xval, phi, gamma, tau);
     // double result_part_2 = F_X_part_2_CQUAD(xval, phi, gamma, tau);
@@ -484,10 +487,24 @@ double F_X (double xval, double phi, double gamma, double tau) {
     return F;
 }
 
+// double F_X_cheat (double xval, double phi, double gamma, double tau) {
+//     double F = F_X (xval, phi, gamma, tau);
+//     if (F >= 1) {
+//         std::cout << "F_X failed at x, phi, gamma, tau = " << xval << "," << phi << "," << gamma << "," << tau << "\n";
+//         std::cout << "Using pmixture_C\n";
+//         F = pmixture_C (xval, phi, gamma);
+//     }
+//     return F;
+// }
+
 double F_X_cheat (double xval, double phi, double gamma, double tau) {
+    double F_cheat = pmixture_C (xval, phi, gamma);
     double F = F_X (xval, phi, gamma, tau);
-    if (F == 1) {
-        F = pmixture_C (xval, phi, gamma);
+    if (F >= 1) {
+        std::cout << "F_X failed at x, phi, gamma, tau = " << xval << "," << phi << "," << gamma << "," << tau << "\n";
+        std::cout << "Using pmixture_C\n";
+        // F = pmixture_C (xval, phi, gamma);
+        return F_cheat;
     }
     return F;
 }
@@ -498,13 +515,14 @@ double F_X_cheat (double xval, double phi, double gamma, double tau) {
 
 
 /* integrand of \int_{-\infty}^x \varphi(\epsilon) f_{X^*}(x-\epsilon)d\epsilon */
-double f_X_integrand (double epsilon, void * params_ptr) { // params is an array of 5 doubles {p, phi, gamma, tau, x}
+double f_X_integrand (double epsilon, void * params_ptr) { // params is an array of 4 doubles {phi, gamma, tau, x}
     // double p     = (*(double(*)[4]) params_ptr)[0];
-    double phi   = (*(double(*)[5]) params_ptr)[1];
-    double gamma = (*(double(*)[5]) params_ptr)[2];
-    double tau   = (*(double(*)[5]) params_ptr)[3];
-    double x     = (*(double(*)[5]) params_ptr)[4];
+    double phi   = (*(double(*)[5]) params_ptr)[0];
+    double gamma = (*(double(*)[5]) params_ptr)[1];
+    double tau   = (*(double(*)[5]) params_ptr)[2];
+    double x     = (*(double(*)[5]) params_ptr)[3];
     return gsl_ran_gaussian_pdf(epsilon, tau)*dmixture_C(x-epsilon, phi, gamma);
+    // return tau*gsl_ran_gaussian_pdf_std(epsilon/tau)*dmixture_C(x-epsilon, phi, gamma)
 }
 
 /* the function to find the root of */
@@ -519,12 +537,12 @@ double function_to_solve (double x, void * params_ptr) {
 }
 
 double function_to_solve_df (double x, void * params_ptr) {
-    double p     = (*(double(*)[4]) params_ptr)[0];
+    // double p     = (*(double(*)[4]) params_ptr)[0];  unused
     double phi   = (*(double(*)[4]) params_ptr)[1];
     double gamma = (*(double(*)[4]) params_ptr)[2];
     double tau   = (*(double(*)[4]) params_ptr)[3];
 
-    double params[5] = { p, phi, gamma, tau, x};
+    double params[4] = { phi, gamma, tau, x};
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (10000);
     double result, error;
     gsl_function f_X;
@@ -535,14 +553,14 @@ double function_to_solve_df (double x, void * params_ptr) {
     if (UB > 38*tau) {
         UB = 38*tau;
     }
-    gsl_integration_qag(&f_X, LB, UB, 1e-12, 1e-12, 10000,
+    gsl_integration_qag(&f_X, LB, UB, 1e-8, 1e-8, 10000,
                         6, w, &result, &error);
     gsl_integration_workspace_free (w);
     return result;
 }
 
-double f_X (double p, double phi, double gamma, double tau, double x){
-    double params[5] = { p, phi, gamma, tau, x};
+double f_X (double phi, double gamma, double tau, double x){
+    double params[4] = { phi, gamma, tau, x};
     gsl_integration_workspace * w = gsl_integration_workspace_alloc (10000);
     double result, error;
     gsl_function F;
@@ -550,7 +568,7 @@ double f_X (double p, double phi, double gamma, double tau, double x){
     F.params = &params;
     double LB = -38*tau;
     double UB = std::min(x, 38*tau);
-    gsl_integration_qag(&F, LB, UB, 1e-12, 1e-12, 10000,
+    gsl_integration_qag(&F, LB, UB, 1e-8, 1e-8, 10000,
                         6, w, &result, &error);
     gsl_integration_workspace_free (w);
     return result;
@@ -563,13 +581,7 @@ void function_to_solve_fdf (double x, void * params_ptr,
 }
 
 double quantile_F_X (double p, double phi, double gamma, double tau) {
-    // if (p > 0.99) {
-    //     printf ("p is: % .10f \n", p);
-    //     double qRW = qRW_newton_C(p, phi, gamma, 100);
-    //     // printf ("qRW is: % .10f \n", qRW);
-    //     return qRW;
-    // }
-    // std::cout << "i'm here" << "\n";
+    // printf("quantile_F_X( %10.5f, %10.5f, %10.5f, %10.5f )\n", p, phi, gamma, tau);
     int status;
     int iter = 0, max_iter = 100;
     const gsl_root_fdfsolver_type *T; // Root Finding Algorithms using Derivatives
@@ -577,9 +589,17 @@ double quantile_F_X (double p, double phi, double gamma, double tau) {
     gsl_function_fdf FDF; // a general function with parameters and its first derivative
 
     double x0, x = qRW_newton_C(p, phi, gamma, 100);
+	// printf("initial guess: %10.5f \n", x);
 
-    if (F_X(x, phi, gamma, tau) == 1 || abs(F_X(x, phi, gamma, tau) - pmixture_C(x, phi, gamma)) < 1e-10) {
-        std::cout << "F_X failed at p = " << p << "\n";
+    if (F_X(x, phi, gamma, tau) >= 1 ) {
+        std::cout << "F_X failed at p = " << p << " phi = " << phi << " gamma = " << gamma << " tau = " << tau << "\n";
+        std::cout << "using qRW_newton_C" << "\n";
+        return x;
+    }
+
+    if (abs(F_X(x, phi, gamma, tau) - pmixture_C(x, phi, gamma)) < 1e-8) {
+        std::cout << "F_X and pmixture_C very close at p = " << p << " phi = " << phi << " gamma = " << gamma << " tau = " << tau << "\n";
+        std::cout << "using qRW_newton_C" << "\n";
         return x;
     }
 
@@ -615,12 +635,57 @@ double quantile_F_X (double p, double phi, double gamma, double tau) {
         x0 = x;
         x = gsl_root_fdfsolver_root(s);
         status = gsl_root_test_delta(x,x0,0,1e-4);
+        if(isnan(x)){
+            printf("numerical integration quantile nan at p: %10.7f, phi: %10.7f, gamma: %10.7f, tau: %10.7f\n",
+                    p, phi, gamma, tau);
+            return x0;
+        }
+        if(x < 0 && f_X(phi, gamma, tau, x) < 1e-3){
+            printf("x calculated to be: %10.7f\n", x);
+            printf("numerical integration quantile < 0 and f_X < 1e-3 at p: %10.7f, phi: %10.7f, gamma: %10.7f, tau: %10.7f\n",
+                    p, phi, gamma, tau);
+            // break the do while loop and restart at 0
+            // break;
+            return x0;
+        }
+        // std::cout << "status code: " << status << "\n";
+        // printf ("status mean: %s\n", gsl_strerror (status));
 
         // if (status == GSL_SUCCESS)
-        //     printf ("Converged:\n");
+            // printf ("Converged:\n");
         // printf ("%5d %10.7f %10.7f\n",
-        //         iter, x, x-x0);
+                // iter, x, x-x0);
     } while (status == GSL_CONTINUE && iter < max_iter);
+
+    // x0 = 1.0;
+    // x = 1.0;
+    // gsl_root_fdfsolver_set(s, &FDF, x);
+    // do {
+    //     iter++;
+    //     status = gsl_root_fdfsolver_iterate(s);
+    //     x0 = x;
+    //     x = gsl_root_fdfsolver_root(s);
+    //     status = gsl_root_test_delta(x,x0,0,1e-4);
+    //     if(isnan(x)){
+    //         printf("numerical integration quantile nan at p: %10.7f, phi: %10.7f, gamma: %10.7f, tau: %10.7f\n",
+    //                 p, phi, gamma, tau);
+    //         return x0;
+    //     }
+    //     if(x < 0){
+    //         std::cout << "BAD AGAIN!" << "\n";
+    //         printf("x calculated to be: %10.7f\n", x);
+    //         printf("numerical integration quantile < 0 at p: %10.7f, phi: %10.7f, gamma: %10.7f, tau: %10.7f\n",
+    //                 p, phi, gamma, tau);
+    //         // break the do while loop and restart at 0
+    //         return x0;
+    //     }
+    //     std::cout << "status code: " << status << "\n";
+    //     printf ("status mean: %s\n", gsl_strerror (status));
+    //     if (status == GSL_SUCCESS)
+    //         printf ("Converged:\n");
+        // printf ("%5d %10.7f %10.7f\n",
+                // iter, x, x-x0);
+    // } while (status == GSL_CONTINUE && iter < max_iter);
 
     gsl_root_fdfsolver_free (s);
     return x;
@@ -628,3 +693,4 @@ double quantile_F_X (double p, double phi, double gamma, double tau) {
 
 
 }
+//g++ -std=c++11 -Wall -pedantic p_inte.cpp  -shared -fPIC -o p_inte.so -lgsl -lgslcblas
